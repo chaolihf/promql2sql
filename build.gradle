@@ -1,0 +1,103 @@
+plugins {
+	id "antlr"
+}
+apply plugin: 'java-library'
+apply plugin: 'eclipse'
+apply plugin: 'maven-publish'
+[compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
+
+group="com.chinatelecom.oneops"
+sourceCompatibility = 11
+
+
+def devzzkfUsername = System.getenv("SrdCloudUserName")
+def devzzkfPassword = System.getenv("SrdCloudPassword")
+def assetVersion = System.getenv("AssetVersion")
+
+if (assetVersion) {
+    version = assetVersion
+}
+else{
+    version = 'it.1.1.1'
+}
+
+println "研发云账号为" + devzzkfUsername
+println "研发云制品库密钥为" + devzzkfPassword
+println "制品的版本号为" + version
+
+repositories {
+	mavenCentral()
+	maven {
+		url "https://artifact.srdcloud.cn/artifactory/unifiedplatform-udp-release-maven-local"
+		credentials {
+            username devzzkfUsername
+            password devzzkfPassword
+        }
+	}
+	
+	maven {
+		url "https://artifact.srdcloud.cn/artifactory/public-maven-virtual"
+	}
+	maven {
+		url "https://artifact.srdcloud.cn/artifactory/public-inner-maven-virtual"
+	}
+}
+
+task sourcesJar(type: Jar) {
+	 archiveClassifier = 'sources'
+	 from sourceSets.main.allSource
+}
+
+jar {
+    manifest {
+        attributes 'Implementation-Title': 'PromQL2SQL Library', 'Implementation-Version': version
+    }
+}
+
+
+dependencies {
+    api(
+			//'com.chinatelecom.udp.core:lang-library:1.0.7',
+            "org.antlr:antlr4:4.13.2",
+            "org.antlr:antlr4-runtime:4.13.2"
+    )
+    testImplementation group: 'junit', name: 'junit', version: '4.12'
+}
+
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = 'promql2sql-library'
+            from components.java
+            artifact sourcesJar
+            pom {
+                name = "promql2sql-library"
+                description = "library to convert promql to sql"
+                url = "http://www.ahoa.com:8101/ahdxgitlab/ahit/platform/"
+                licenses {
+                    license {
+                        name = "The Apache License, Version 2.0"
+                        url = "http://www.apache.org/licenses/LICENSE-2.0.txt"
+                    }
+                }
+                developers {
+                    developer {
+                        id = "chaoli279@hotmail.com"
+                        name = "Li Chao"
+                        email = "chaoli279@hotmail.com"
+                    }
+                }
+            }
+        }
+    }
+    repositories {
+        maven {
+            url "https://artifact.srdcloud.cn/artifactory/unifiedplatform-udp-release-maven-local/"
+			credentials(PasswordCredentials){
+                username=devzzkfUsername
+                password=devzzkfPassword
+            }
+        }
+    }
+}
