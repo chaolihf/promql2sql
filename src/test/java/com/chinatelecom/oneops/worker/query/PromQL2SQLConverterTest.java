@@ -5,16 +5,29 @@ import static org.junit.Assert.assertTrue;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.junit.Test;
 
 public class PromQL2SQLConverterTest { 
 
+    private Map<String, String> metricMap = new HashMap<>(){
+        {
+            put("container_cpu_usage_seconds_total", "pod_info");
+        }
+    };
+    
+
     @Test
     public void testConvert() throws IOException{
         String[] testSources=new String[]{"instant_selector1"};
         String[] testResults=new String[]{"select container_cpu_usage_seconds_total from pod_info order by time limit 1"};
-        PromQL2SQLConverter converter = new PromQL2SQLConverter();
+        PromQL2SQLConverter converter = new PromQL2SQLConverter(new IMetricFinder(){
+            public String find(String metricName) {
+                return metricMap.get(metricName);
+            }
+        });
         for (int i=0;i<testSources.length;i++) {
             String sourceText=loadTestContent(testSources[i]);
             String result=converter.convertPromQL(sourceText);

@@ -18,6 +18,16 @@ import com.chinatelecom.oneops.worker.query.generate.PromQLParserBaseVisitor;
 public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
 
     
+    private IMetricFinder metricFinder;
+    private int aliasIndex=0;
+
+    private String getAliasName(){
+        return "alias"+aliasIndex++;
+    }
+    
+    public PromQL2SQLConverter(IMetricFinder finder){
+        this.metricFinder=finder;
+    }
 
     @Override
     public SQLToken visitExpression(ExpressionContext ctx) {
@@ -27,14 +37,19 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
 
     @Override
     public SQLToken visitVectorOperation4vector(VectorOperation4vectorContext ctx) {
-        SQLToken sqlToken = new SQLToken(ctx.getText());
+        SQLToken sqlToken = new SQLToken();
         return sqlToken;
     }
 
 
     @Override
     public SQLToken visitInstantSelector4metricName(InstantSelector4metricNameContext ctx) {
-        SQLToken token = new SQLToken("select ");
+        SQLToken token = new SQLToken();
+        String metricName=ctx.METRIC_NAME().getText();
+        String matricTableName=metricFinder.find(metricName);
+        String aliasName=getAliasName();
+        token.setTableNameWithAlias(matricTableName, aliasName);
+        token.addField(String.format("%s.%s",aliasName,metricName));
         return token;
     }
 
