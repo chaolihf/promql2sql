@@ -44,17 +44,17 @@ expression
 // Unary operations have the same precedence as multiplications
 
 vectorOperation
-    : <assoc = right> vectorOperation powOp vectorOperation
-    | <assoc = right> vectorOperation subqueryOp
-    | unaryOp vectorOperation
-    | vectorOperation multOp vectorOperation
-    | vectorOperation addOp vectorOperation
-    | vectorOperation compareOp vectorOperation
-    | vectorOperation andUnlessOp vectorOperation
-    | vectorOperation orOp vectorOperation
-    | vectorOperation vectorMatchOp vectorOperation
-    | vectorOperation AT vectorOperation
-    | vector
+    : <assoc = right> vectorOperation powOp vectorOperation          # vectorOperation4pow
+    | <assoc = right> vectorOperation subqueryOp                    # vectorOperation4subquery
+    | unaryOp vectorOperation                                         # vectorOperation4unary
+    | vectorOperation multOp vectorOperation                          # vectorOperation4mult
+    | vectorOperation addOp vectorOperation                           # vectorOperation4add
+    | vectorOperation compareOp vectorOperation                       # vectorOperation4compare
+    | vectorOperation andUnlessOp vectorOperation                     # vectorOperation4andUnless
+    | vectorOperation orOp vectorOperation                              # vectorOperation4or
+    | vectorOperation vectorMatchOp vectorOperation                   # vectorOperation4vectorMatch
+    | vectorOperation AT vectorOperation                              # vectorOperation4at
+    | vector                                                          # vectorOperation4vector
     ;
 
 // Operators
@@ -116,8 +116,8 @@ parens
 // Selectors
 
 instantSelector
-    : METRIC_NAME (LEFT_BRACE labelMatcherList? RIGHT_BRACE)?
-    | LEFT_BRACE labelMatcherList RIGHT_BRACE
+    : METRIC_NAME (LEFT_BRACE labelMatcherList? RIGHT_BRACE)?      # instantSelector4metricName
+    | LEFT_BRACE labelMatcherList RIGHT_BRACE                      # instantSelector4labelMatcherList
     ;
 
 labelMatcher

@@ -1,6 +1,13 @@
-plugins {
-	id "antlr"
-}
+// plugins {
+// 	id "antlr"
+// }
+
+
+// generateGrammarSource {
+//     arguments += ["-visitor", "-no-listener"," -o ../java/com/chinatelecom/oneops/worker/query/generate",
+//         "-package com.chinatelecom.oneops.worker.query.generate"]
+// }
+
 apply plugin: 'java-library'
 apply plugin: 'eclipse'
 apply plugin: 'maven-publish'

@@ -7,4 +7,4 @@
 # 编译生成
 pip install antlr4-tools
 cd D:\tools\java\workspace\promql2sql\promql2sql\src\main\antlr
-antlr4.exe -visitor *.g4 -o ../java/com/chinatelecom/oneops/worker/query/generate -package com.chinatelecom.oneops.worker.query.generate
+antlr4.exe -visitor -no-listener *.g4 -o ../java/com/chinatelecom/oneops/worker/query/generate -package com.chinatelecom.oneops.worker.query.generate
