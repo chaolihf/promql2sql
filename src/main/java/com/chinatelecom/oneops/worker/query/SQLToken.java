@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.chinatelecom.oneops.worker.query.entity.ConditionPart;
 import com.chinatelecom.oneops.worker.query.entity.FieldPart;
+import com.chinatelecom.oneops.worker.query.entity.GroupPart;
 import com.chinatelecom.oneops.worker.query.entity.LimitPart;
 import com.chinatelecom.oneops.worker.query.entity.OrderPart;
 import com.chinatelecom.oneops.worker.query.entity.TablePart;
@@ -15,6 +16,7 @@ public class SQLToken {
     private List<FieldPart> fieldsPart=null;
     private List<ConditionPart> conditionsPart=null;
     private List<OrderPart> ordersPart=null;
+    private List<GroupPart> groupsPart=null;
     private LimitPart limitPart=null;
     
     public String getSql() {
@@ -37,6 +39,14 @@ public class SQLToken {
                 sql.append(" and ");
             }
             sql.delete(sql.length()-5,sql.length());
+        }
+        if(groupsPart!=null){
+            sql.append(" group by ");
+            for(GroupPart groupPart:groupsPart){
+                sql.append(groupPart.getGroup());
+                sql.append(",");
+            }
+            sql.delete(sql.length()-1,sql.length());
         }
         if(ordersPart!=null){
             sql.append(" order by ");
@@ -66,6 +76,10 @@ public class SQLToken {
         tablePart=new TablePart(metricName, aliasName);
     }
 
+    public String getTableAlias(){
+        return tablePart.getAliasName();
+    }
+
     public void addField(String expression) {
         if (fieldsPart==null) {
             fieldsPart=new ArrayList<FieldPart>();
@@ -78,6 +92,11 @@ public class SQLToken {
             limitPart=new LimitPart();
         }
         limitPart.setLimit(limit);
+    }
+
+    
+    public void removeLimit() {
+        limitPart=null;
     }
 
     public void addOrder(String expression, boolean isAsc) {
@@ -93,5 +112,13 @@ public class SQLToken {
         }
         conditionsPart.add(new ConditionPart(condition));
     }
+
+    public void addGroup(String group) {
+        if(groupsPart==null){
+            groupsPart=new ArrayList<GroupPart>();
+        }
+        groupsPart.add(new GroupPart(group));
+    }
+
 
 }

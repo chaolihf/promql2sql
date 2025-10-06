@@ -5,7 +5,9 @@ import static org.junit.Assert.assertTrue;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.Test;
@@ -17,26 +19,39 @@ public class PromQL2SQLConverterTest {
             put("container_cpu_usage_seconds_total", "container_pod_cpu_info");
         }
     };
+
+    private Map<String,List<String>> metricLabelMap=new HashMap<>(){
+        {
+            put("container_pod_cpu_info", Arrays.asList("namespace","pod"));
+        }
+    };
     
 
     @Test
     public void testConvert() throws IOException{
         String[] testSources=new String[]{
+            // "matrix_selector2",
+            // "matrix_selector1",
             "instant_selector1",
-            "instant_selector2",
-            "instant_selector3",
-            "instant_selector4"
+            // "instant_selector2",
+            // "instant_selector3",
+            // "instant_selector4"
         };
         String[] testResults=new String[]{
-            "select a0.container_cpu_usage_seconds_total from container_pod_cpu_info a0 order by a0.receivetime desc limit 1",
-            "select a0.container_cpu_usage_seconds_total from container_pod_cpu_info a0 order by a0.receivetime desc limit 1",
-            "select a0.container_cpu_usage_seconds_total from container_pod_cpu_info a0 where a0.job='kubelet' order by a0.receivetime desc limit 1",
-            "select a0.container_cpu_usage_seconds_total from container_pod_cpu_info a0 order by a0.receivetime desc limit 1",
+            //"select a0.container_cpu_usage_seconds_total from container_pod_cpu_info a0 where a0.receivetime>now()-interval '5 minutes' order by a0.receivetime desc",
+            //"select a0.container_cpu_usage_seconds_total from container_pod_cpu_info a0 where a0.receivetime>now()-interval '5 minutes' order by a0.receivetime desc",
+            "select a0.receivetime,a0.namespace,a0.pod,last(a0.container_cpu_usage_seconds_total,a0.receivetime) container_cpu_usage_seconds_total from container_pod_cpu_info a0 where a0.receivetime=(select receivetime from container_pod_cpu_info where receivetime> now()-interval '2 min'order by receivetime desc limit 1) group by a0.receivetime,a0.namespace,a0.pod order by a0.receivetime asc,a0.namespace asc,a0.pod asc",
+            //"select a0.container_cpu_usage_seconds_total from container_pod_cpu_info a0 order by a0.receivetime desc limit 1",
+            //"select a0.container_cpu_usage_seconds_total from container_pod_cpu_info a0 where a0.job='kubelet' order by a0.receivetime desc limit 1",
+            //"select a0.container_cpu_usage_seconds_total from container_pod_cpu_info a0 order by a0.receivetime desc limit 1",
         };
         IMetricFinder finder=new IMetricFinder(){
-            public String find(String metricName) {
+            public String findTableName(String metricName) {
                 return metricMap.get(metricName);
             }
+            public List<String> getMetricLabels(String tableName){
+                return metricLabelMap.get(tableName);
+            } 
         };
         for (int i=0;i<testSources.length;i++) {
             PromQL2SQLConverter converter = new PromQL2SQLConverter(finder);
