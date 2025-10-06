@@ -112,6 +112,13 @@ public class SQLToken {
         }
         conditionsPart.add(new ConditionPart(condition));
     }
+    
+    public void insertCondition(int index, String condition) {
+        if(conditionsPart==null){
+            conditionsPart=new ArrayList<ConditionPart>();
+        }
+        conditionsPart.add(index, new ConditionPart(condition));
+    }
 
     public void addGroup(String group) {
         if(groupsPart==null){
@@ -119,6 +126,7 @@ public class SQLToken {
         }
         groupsPart.add(new GroupPart(group));
     }
+
 
 
 }

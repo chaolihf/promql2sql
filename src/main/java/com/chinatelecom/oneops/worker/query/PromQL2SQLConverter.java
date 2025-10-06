@@ -1,5 +1,6 @@
 package com.chinatelecom.oneops.worker.query;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.antlr.v4.runtime.CharStream;
@@ -52,8 +53,43 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
 
     @Override
     public SQLToken visitInstantSelector4metricName(InstantSelector4metricNameContext ctx) {
+        List<String[]> labelMatchers=null;
+        if(ctx.labelMatcherList()!=null){
+            labelMatchers=new ArrayList<>();
+            for(LabelMatcherContext labelMatcher : ctx.labelMatcherList().labelMatcher()){
+                labelMatchers.add(new String[]{
+                    labelMatcher.labelName().getText(),
+                    labelMatcher.labelMatcherOperator().getText(),
+                    labelMatcher.STRING().getText()
+                });
+            }
+        } 
+        return generateInstantToken(ctx.METRIC_NAME().getText(),labelMatchers);
+    }
+
+    @Override
+    public SQLToken visitInstantSelector4labelMatcherList(InstantSelector4labelMatcherListContext ctx) {
+        List<String[]> labelMatchers=null;
+        String metricName=null;
+        for(LabelMatcherContext labelMatcher : ctx.labelMatcherList().labelMatcher()){
+            String labelName=labelMatcher.labelName().getText();
+            if ("__name__".equals(labelName)){
+                metricName=labelMatcher.STRING().getText().replace("\'","");
+            } else {
+                if(labelMatchers==null){
+                    labelMatchers=new ArrayList<>();
+                }
+                labelMatchers.add(new String[]{
+                    labelName,labelMatcher.labelMatcherOperator().getText(),labelMatcher.STRING().getText()
+                });
+            }
+            
+        }
+        return generateInstantToken(metricName,labelMatchers);
+    }
+
+    private SQLToken generateInstantToken(String metricName,List<String[]> labelMatchers){
         SQLToken token = new SQLToken();
-        String metricName=ctx.METRIC_NAME().getText();
         String metricTableName=metricFinder.findTableName(metricName);
         List<String> labels=metricFinder.getMetricLabels(metricTableName);
         String aliasName=getAliasName();
@@ -64,14 +100,17 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
             token.addField(String.format("%s.%s",aliasName,label));
         }
         token.addField(String.format("last(%s.%s,%s) %s",aliasName,metricName,timeExpression,metricName));
-        token.addCondition(String.format("%s=(select %s from %s where %s> now()-interval '%d min'order by %s desc limit 1)",
-            timeExpression,FIELD_TIME,metricTableName,FIELD_TIME, DELAY_TIME,FIELD_TIME));
-        if(ctx.labelMatcherList()!=null){
-            for(LabelMatcherContext labelMatcher : ctx.labelMatcherList().labelMatcher()){
-                token.addCondition(String.format("%s.%s%s%s",aliasName,labelMatcher.labelName().getText(),
-                    labelMatcher.labelMatcherOperator().getText(),labelMatcher.STRING().getText()));
+        StringBuffer conditionString=new StringBuffer();
+        if(labelMatchers!=null){
+            conditionString.append(" and ");
+            for(String[] labelMatcher : labelMatchers){
+                token.addCondition(String.format("%s.%s%s%s",aliasName,labelMatcher[0],labelMatcher[1],labelMatcher[2]));
+                conditionString.append(String.format("%s%s%s",labelMatcher[0],labelMatcher[1],labelMatcher[2])).append(" and ");
             }
-        }
+            conditionString.delete(conditionString.length()-5,conditionString.length());
+        } 
+        token.insertCondition(0,String.format("%s=(select %s from %s where %s>now()-interval '%d min'%s order by %s desc limit 1)",
+            timeExpression,FIELD_TIME,metricTableName,FIELD_TIME, DELAY_TIME,conditionString.toString(), FIELD_TIME));
         token.addGroup(timeExpression);
         for(String label:labels){
             token.addGroup(String.format("%s.%s",aliasName,label));
@@ -80,28 +119,6 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
         for(String label:labels){
             token.addOrder(String.format("%s.%s",aliasName,label),true);
         }
-        return token;
-    }
-
-    @Override
-    public SQLToken visitInstantSelector4labelMatcherList(InstantSelector4labelMatcherListContext ctx) {
-        SQLToken token = new SQLToken();
-        String aliasName=getAliasName();
-        for(LabelMatcherContext labelMatcher : ctx.labelMatcherList().labelMatcher()){
-            String labelName=labelMatcher.labelName().getText();
-            if ("__name__".equals(labelName)){
-                String metricName=labelMatcher.STRING().getText().replace("\'", "");
-                String matricTableName=metricFinder.findTableName(metricName);
-                token.setTableNameWithAlias(matricTableName, aliasName);
-                token.addField(String.format("%s.%s",aliasName,metricName));
-            } else {
-                token.addCondition(String.format("%s.%s%s%s",aliasName,labelName,
-                labelMatcher.labelMatcherOperator().getText(),labelMatcher.STRING().getText()));
-            }
-            
-        }
-        token.addOrder(String.format("%s.receivetime",aliasName),false);
-        token.setLimit(1);
         return token;
     }
 
