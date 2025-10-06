@@ -21,18 +21,28 @@ public class PromQL2SQLConverterTest {
 
     @Test
     public void testConvert() throws IOException{
-        String[] testSources=new String[]{"instant_selector1"};
+        String[] testSources=new String[]{
+            "instant_selector1",
+            "instant_selector2",
+            "instant_selector3",
+            "instant_selector4"
+        };
         String[] testResults=new String[]{
-            "select a0.container_cpu_usage_seconds_total from container_pod_cpu_info a0 order by a0.receivetime desc limit 1"};
-        PromQL2SQLConverter converter = new PromQL2SQLConverter(new IMetricFinder(){
+            "select a0.container_cpu_usage_seconds_total from container_pod_cpu_info a0 order by a0.receivetime desc limit 1",
+            "select a0.container_cpu_usage_seconds_total from container_pod_cpu_info a0 order by a0.receivetime desc limit 1",
+            "select a0.container_cpu_usage_seconds_total from container_pod_cpu_info a0 where a0.job='kubelet' order by a0.receivetime desc limit 1",
+            "select a0.container_cpu_usage_seconds_total from container_pod_cpu_info a0 order by a0.receivetime desc limit 1",
+        };
+        IMetricFinder finder=new IMetricFinder(){
             public String find(String metricName) {
                 return metricMap.get(metricName);
             }
-        });
+        };
         for (int i=0;i<testSources.length;i++) {
+            PromQL2SQLConverter converter = new PromQL2SQLConverter(finder);
             String sourceText=loadTestContent(testSources[i]);
             String result=converter.convertPromQL(sourceText);
-            assertTrue(String.format("转化文件%s中PromQL语句%s",testSources[i],sourceText),
+            assertTrue(String.format("转化文件%s中PromQL语句%s到%s",testSources[i],sourceText,result),
                 result.equals(testResults[i]));   
         }
     }

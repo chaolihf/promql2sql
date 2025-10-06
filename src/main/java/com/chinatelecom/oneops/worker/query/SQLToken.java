@@ -87,4 +87,11 @@ public class SQLToken {
         ordersPart.add(new OrderPart(new FieldPart(expression), isAsc));
     }
 
+    public void addCondition(String condition) {
+        if(conditionsPart==null){
+            conditionsPart=new ArrayList<ConditionPart>();
+        }
+        conditionsPart.add(new ConditionPart(condition));
+    }
+
 }

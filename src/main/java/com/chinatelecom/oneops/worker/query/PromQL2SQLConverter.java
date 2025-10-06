@@ -8,7 +8,9 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import com.chinatelecom.oneops.worker.query.generate.PromQLLexer;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.ExpressionContext;
+import com.chinatelecom.oneops.worker.query.generate.PromQLParser.InstantSelector4labelMatcherListContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.InstantSelector4metricNameContext;
+import com.chinatelecom.oneops.worker.query.generate.PromQLParser.LabelMatcherContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4vectorContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParserBaseVisitor;
 
@@ -40,7 +42,6 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
         return visit(ctx.vector());
     }
 
-
     @Override
     public SQLToken visitInstantSelector4metricName(InstantSelector4metricNameContext ctx) {
         SQLToken token = new SQLToken();
@@ -49,13 +50,43 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
         String aliasName=getAliasName();
         token.setTableNameWithAlias(matricTableName, aliasName);
         token.addField(String.format("%s.%s",aliasName,metricName));
-        if(ctx.LEFT_BRACE()==null){
+        if(ctx.LEFT_BRACE()==null || ctx.labelMatcherList()==null){
+            token.addOrder(String.format("%s.receivetime",aliasName),false);
+            token.setLimit(1);
+        } else {
+            for(LabelMatcherContext labelMatcher : ctx.labelMatcherList().labelMatcher()){
+                token.addCondition(String.format("%s.%s%s%s",aliasName,labelMatcher.labelName().getText(),
+                    labelMatcher.labelMatcherOperator().getText(),labelMatcher.STRING().getText()));
+            }
             token.addOrder(String.format("%s.receivetime",aliasName),false);
             token.setLimit(1);
         }
         return token;
     }
 
+    
+
+    @Override
+    public SQLToken visitInstantSelector4labelMatcherList(InstantSelector4labelMatcherListContext ctx) {
+        SQLToken token = new SQLToken();
+        String aliasName=getAliasName();
+        for(LabelMatcherContext labelMatcher : ctx.labelMatcherList().labelMatcher()){
+            String labelName=labelMatcher.labelName().getText();
+            if ("__name__".equals(labelName)){
+                String metricName=labelMatcher.STRING().getText().replace("\'", "");
+                String matricTableName=metricFinder.find(metricName);
+                token.setTableNameWithAlias(matricTableName, aliasName);
+                token.addField(String.format("%s.%s",aliasName,metricName));
+            } else {
+                token.addCondition(String.format("%s.%s%s%s",aliasName,labelName,
+                labelMatcher.labelMatcherOperator().getText(),labelMatcher.STRING().getText()));
+            }
+            
+        }
+        token.addOrder(String.format("%s.receivetime",aliasName),false);
+        token.setLimit(1);
+        return token;
+    }
 
     public String convertPromQL(String promQL) {
         CharStream input=CharStreams.fromString(promQL);
