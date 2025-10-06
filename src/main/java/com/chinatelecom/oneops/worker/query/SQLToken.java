@@ -5,6 +5,8 @@ import java.util.List;
 
 import com.chinatelecom.oneops.worker.query.entity.ConditionPart;
 import com.chinatelecom.oneops.worker.query.entity.FieldPart;
+import com.chinatelecom.oneops.worker.query.entity.LimitPart;
+import com.chinatelecom.oneops.worker.query.entity.OrderPart;
 import com.chinatelecom.oneops.worker.query.entity.TablePart;
 
 public class SQLToken {
@@ -12,6 +14,8 @@ public class SQLToken {
     private TablePart tablePart=null;
     private List<FieldPart> fieldsPart=null;
     private List<ConditionPart> conditionsPart=null;
+    private List<OrderPart> ordersPart=null;
+    private LimitPart limitPart=null;
     
     public String getSql() {
         StringBuffer sql=new StringBuffer("select ");
@@ -24,7 +28,7 @@ public class SQLToken {
         }
         sql.append(" from ");
         sql.append(tablePart.getMetricName());
-        sql.append(" as ");
+        sql.append(" ");
         sql.append(tablePart.getAliasName());
         if(conditionsPart!=null){
             sql.append(" where ");
@@ -33,6 +37,27 @@ public class SQLToken {
                 sql.append(" and ");
             }
             sql.delete(sql.length()-5,sql.length());
+        }
+        if(ordersPart!=null){
+            sql.append(" order by ");
+            for(OrderPart orderPart:ordersPart){
+                sql.append(orderPart.getOrderField().getExpression());
+                if(orderPart.isAsc()){
+                    sql.append(" asc");
+                }else{
+                    sql.append(" desc");
+                }
+                sql.append(",");
+            }
+            sql.delete(sql.length()-1,sql.length());
+        }
+        if(limitPart!=null){
+            if(limitPart.getLimit()>0){
+                sql.append(" limit ").append(limitPart.getLimit());
+            }
+            if(limitPart.getOffset()>0){
+                sql.append(" offset ").append(limitPart.getOffset());
+            }
         }
         return sql.toString();
     }
@@ -46,6 +71,20 @@ public class SQLToken {
             fieldsPart=new ArrayList<FieldPart>();
         }
         fieldsPart.add(new FieldPart(expression));
+    }
+
+    public void setLimit(int limit) {
+        if (limitPart==null){
+            limitPart=new LimitPart();
+        }
+        limitPart.setLimit(limit);
+    }
+
+    public void addOrder(String expression, boolean isAsc) {
+        if (ordersPart==null){
+            ordersPart=new ArrayList<OrderPart>();
+        }
+        ordersPart.add(new OrderPart(new FieldPart(expression), isAsc));
     }
 
 }

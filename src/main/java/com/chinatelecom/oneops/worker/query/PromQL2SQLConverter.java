@@ -22,7 +22,7 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
     private int aliasIndex=0;
 
     private String getAliasName(){
-        return "alias"+aliasIndex++;
+        return "a"+aliasIndex++;
     }
     
     public PromQL2SQLConverter(IMetricFinder finder){
@@ -37,8 +37,7 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
 
     @Override
     public SQLToken visitVectorOperation4vector(VectorOperation4vectorContext ctx) {
-        SQLToken sqlToken = new SQLToken();
-        return sqlToken;
+        return visit(ctx.vector());
     }
 
 
@@ -50,6 +49,10 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
         String aliasName=getAliasName();
         token.setTableNameWithAlias(matricTableName, aliasName);
         token.addField(String.format("%s.%s",aliasName,metricName));
+        if(ctx.LEFT_BRACE()==null){
+            token.addOrder(String.format("%s.receivetime",aliasName),false);
+            token.setLimit(1);
+        }
         return token;
     }
 

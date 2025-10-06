@@ -14,7 +14,7 @@ public class PromQL2SQLConverterTest {
 
     private Map<String, String> metricMap = new HashMap<>(){
         {
-            put("container_cpu_usage_seconds_total", "pod_info");
+            put("container_cpu_usage_seconds_total", "container_pod_cpu_info");
         }
     };
     
@@ -22,7 +22,8 @@ public class PromQL2SQLConverterTest {
     @Test
     public void testConvert() throws IOException{
         String[] testSources=new String[]{"instant_selector1"};
-        String[] testResults=new String[]{"select container_cpu_usage_seconds_total from pod_info order by time limit 1"};
+        String[] testResults=new String[]{
+            "select a0.container_cpu_usage_seconds_total from container_pod_cpu_info a0 order by a0.receivetime desc limit 1"};
         PromQL2SQLConverter converter = new PromQL2SQLConverter(new IMetricFinder(){
             public String find(String metricName) {
                 return metricMap.get(metricName);
