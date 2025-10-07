@@ -8,6 +8,7 @@ import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.ParseTree;
 
+import com.chinatelecom.oneops.worker.query.entity.ConditionPart;
 import com.chinatelecom.oneops.worker.query.generate.PromQLLexer;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.ExpressionContext;
@@ -15,6 +16,7 @@ import com.chinatelecom.oneops.worker.query.generate.PromQLParser.InstantSelecto
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.InstantSelector4metricNameContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.LabelMatcherContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.MatrixSelectorContext;
+import com.chinatelecom.oneops.worker.query.generate.PromQLParser.OffsetContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4subqueryContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4vectorContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParserBaseVisitor;
@@ -109,8 +111,8 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
             }
             conditionString.delete(conditionString.length()-5,conditionString.length());
         } 
-        token.insertCondition(0,String.format("%s=(select %s from %s where %s>now()-interval '%d min'%s order by %s desc limit 1)",
-            timeExpression,FIELD_TIME,metricTableName,FIELD_TIME, DELAY_TIME,conditionString.toString(), FIELD_TIME));
+        token.insertCondition(0,String.format("%s=(select %s from %s where %s>now() - interval '%d min' and %s<now()%s order by %s desc limit 1)",
+            timeExpression,FIELD_TIME,metricTableName,FIELD_TIME, DELAY_TIME, FIELD_TIME,conditionString.toString(),FIELD_TIME));
         token.addGroup(timeExpression);
         for(String label:labels){
             token.addGroup(String.format("%s.%s",aliasName,label));
@@ -126,7 +128,7 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
     public SQLToken visitMatrixSelector(MatrixSelectorContext ctx) {
         SQLToken instanceToken=visit(ctx.instantSelector());
         //替换默认时间查询条件
-        instanceToken.getCondition(0).setCondition(String.format("%s.%s between now()-interval '%s' and now()",
+        instanceToken.getCondition(0).setCondition(String.format("%s.%s between now() - interval '%s' and now()",
             instanceToken.getTableAlias(),FIELD_TIME,getDurationExpression(ctx.TIME_RANGE().getText())));
         return instanceToken;
     }
@@ -136,7 +138,7 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
         SQLToken instanceToken=visit(ctx.vectorOperation());
         //替换默认时间查询条件
         String[] subRange=ctx.subqueryOp().SUBQUERY_RANGE().getText().split(":");
-        instanceToken.getCondition(0).setCondition(String.format("%s.%s between now()-interval '%s' and now()",
+        instanceToken.getCondition(0).setCondition(String.format("%s.%s between now() - interval '%s' and now()",
             instanceToken.getTableAlias(),FIELD_TIME,getDurationExpression(subRange[0])));
         if(subRange[1].length()>1){
             String bucketDuration=String.format("time_bucket('%s',%s.%s)",
@@ -195,6 +197,21 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
             i++;
         }
         return duration.substring(0, duration.length()-1);
+    }
+
+    @Override
+    public SQLToken visitOffset(OffsetContext ctx) {
+        SQLToken token=null;
+        if (ctx.instantSelector()!=null){
+            token=visit(ctx.instantSelector());
+        } else{
+            token=visit(ctx.matrixSelector());
+        }
+        String offsetDuration=getDurationExpression(ctx.DURATION().getText());
+        ConditionPart timeCondition=token.getCondition(0);
+        String offsetCondition=timeCondition.getCondition().replace("now()", String.format("now() - interval '%s'",offsetDuration));
+        timeCondition.setCondition(offsetCondition);
+        return token;
     }
 
     public String convertPromQL(String promQL) {
