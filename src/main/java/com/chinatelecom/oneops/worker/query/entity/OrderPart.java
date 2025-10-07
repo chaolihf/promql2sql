@@ -28,5 +28,10 @@ public class OrderPart {
         this.isAsc = isAsc;
     }
 
+    public void setExpression(String expression,boolean isAsc) {
+        this.orderField=new FieldPart(expression);
+        this.isAsc=isAsc;
+    }
+
 
 }

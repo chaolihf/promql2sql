@@ -125,9 +125,8 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
     @Override
     public SQLToken visitMatrixSelector(MatrixSelectorContext ctx) {
         SQLToken instanceToken=visit(ctx.instantSelector());
-        //删除默认时间查询条件
-        instanceToken.removeCondition(0);
-        instanceToken.addCondition(String.format("%s.%s>now()-interval '%s'",
+        //替换默认时间查询条件
+        instanceToken.getCondition(0).setCondition(String.format("%s.%s between now()-interval '%s' and now()",
             instanceToken.getTableAlias(),FIELD_TIME,getDurationExpression(ctx.TIME_RANGE().getText())));
         return instanceToken;
     }
@@ -135,13 +134,16 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
     @Override
     public SQLToken visitVectorOperation4subquery(VectorOperation4subqueryContext ctx) {
         SQLToken instanceToken=visit(ctx.vectorOperation());
-        //删除默认时间查询条件
-        instanceToken.removeCondition(0);
+        //替换默认时间查询条件
         String[] subRange=ctx.subqueryOp().SUBQUERY_RANGE().getText().split(":");
-        instanceToken.addCondition(String.format("%s.%s>now()-interval '%s'",
+        instanceToken.getCondition(0).setCondition(String.format("%s.%s between now()-interval '%s' and now()",
             instanceToken.getTableAlias(),FIELD_TIME,getDurationExpression(subRange[0])));
-        if(subRange[1].length()!=0){
-
+        if(subRange[1].length()>1){
+            String bucketDuration=String.format("time_bucket('%s',%s.%s)",
+                getDurationExpression(subRange[1]),instanceToken.getTableAlias(),FIELD_TIME);
+            instanceToken.getField(0).setExpression(String.format("%s %s",bucketDuration,FIELD_TIME));
+            instanceToken.getGroup(0).setGroup(bucketDuration);
+            instanceToken.getOrder(0).setExpression(bucketDuration,true);
         }
         return instanceToken;
     }

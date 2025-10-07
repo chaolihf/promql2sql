@@ -87,6 +87,15 @@ public class SQLToken {
         fieldsPart.add(new FieldPart(expression));
     }
 
+    
+
+    public FieldPart getField(int index) {
+        if(fieldsPart!=null && index>=0 && index<fieldsPart.size()){
+            return fieldsPart.get(index);
+        }   
+        return null; 
+    }
+
     public void setLimit(int limit) {
         if (limitPart==null){
             limitPart=new LimitPart();
@@ -106,6 +115,13 @@ public class SQLToken {
         ordersPart.add(new OrderPart(new FieldPart(expression), isAsc));
     }
 
+    public OrderPart getOrder(int index) {
+        if(ordersPart!=null && index>=0 && index<ordersPart.size()){
+            return ordersPart.get(index);
+        }
+        return null;
+    }
+
     public void addCondition(String condition) {
         if(conditionsPart==null){
             conditionsPart=new ArrayList<ConditionPart>();
@@ -120,10 +136,11 @@ public class SQLToken {
         conditionsPart.add(index, new ConditionPart(condition));
     }
 
-    public void removeCondition(int index) {
-        if(conditionsPart!=null && index>=0 ){
-            conditionsPart.remove(index);
-        }        
+    public ConditionPart getCondition(int index) {
+        if(conditionsPart!=null && index>=0 && index<conditionsPart.size()){
+            return conditionsPart.get(index);
+        }   
+        return null;     
     }
 
     public void addGroup(String group) {
@@ -131,6 +148,13 @@ public class SQLToken {
             groupsPart=new ArrayList<GroupPart>();
         }
         groupsPart.add(new GroupPart(group));
+    }
+
+    public GroupPart getGroup(int index) {
+        if(groupsPart!=null && index>=0 && index<groupsPart.size()){
+            return groupsPart.get(index);
+        }
+        return null;
     }
 
 

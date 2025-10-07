@@ -12,4 +12,8 @@ public class ConditionPart {
         return condition;
     }
 
+    public void setCondition(String condition) {
+        this.condition = condition;
+    }
+
 }
