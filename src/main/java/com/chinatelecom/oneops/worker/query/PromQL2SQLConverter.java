@@ -125,19 +125,21 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
     @Override
     public SQLToken visitMatrixSelector(MatrixSelectorContext ctx) {
         SQLToken instanceToken=visit(ctx.instantSelector());
-        instanceToken.addCondition(String.format("%s.receivetime>now()-interval '%s'",
-            instanceToken.getTableAlias(),getDurationExpression(ctx.TIME_RANGE().getText())));
-        instanceToken.removeLimit();
+        //删除默认时间查询条件
+        instanceToken.removeCondition(0);
+        instanceToken.addCondition(String.format("%s.%s>now()-interval '%s'",
+            instanceToken.getTableAlias(),FIELD_TIME,getDurationExpression(ctx.TIME_RANGE().getText())));
         return instanceToken;
     }
 
     @Override
     public SQLToken visitVectorOperation4subquery(VectorOperation4subqueryContext ctx) {
         SQLToken instanceToken=visit(ctx.vectorOperation());
+        //删除默认时间查询条件
+        instanceToken.removeCondition(0);
         String[] subRange=ctx.subqueryOp().SUBQUERY_RANGE().getText().split(":");
-        instanceToken.addCondition(String.format("%s.receivetime>now()-interval '%s'",
-            instanceToken.getTableAlias(),getDurationExpression(subRange[0])));
-        instanceToken.removeLimit();
+        instanceToken.addCondition(String.format("%s.%s>now()-interval '%s'",
+            instanceToken.getTableAlias(),FIELD_TIME,getDurationExpression(subRange[0])));
         if(subRange[1].length()!=0){
 
         }
@@ -179,10 +181,10 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
                                 duration.append("millisecond ");
                                 i++;;
                             } else{
-                                duration.append("minutes ");
+                                duration.append("min ");
                             }
                         } else{
-                            duration.append("minutes ");
+                            duration.append("min ");
                         }
                     default:
                         break;

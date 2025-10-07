@@ -120,6 +120,12 @@ public class SQLToken {
         conditionsPart.add(index, new ConditionPart(condition));
     }
 
+    public void removeCondition(int index) {
+        if(conditionsPart!=null && index>=0 ){
+            conditionsPart.remove(index);
+        }        
+    }
+
     public void addGroup(String group) {
         if(groupsPart==null){
             groupsPart=new ArrayList<GroupPart>();
