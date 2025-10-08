@@ -18,8 +18,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 ```
-示例：  safeDivide(2,1)=2; safeDivide(2,0)=0;
+示例：  safeDiv(2,1)=2; safeDiv(2,0)=0;
 
+```
+CREATE OR REPLACE FUNCTION clamp(value NUMERIC, min_value NUMERIC, max_value NUMERIC)
+RETURNS NUMERIC AS $$
+BEGIN
+    RETURN GREATEST(LEAST(value, max_value), min_value);
+END;
+$$ LANGUAGE plpgsql;
+```
+示例：clamp(5, 1, 10)=5; clamp(-3, 1, 10)=1;
 # 编译生成
 pip install antlr4-tools
 cd D:\tools\java\workspace\promql2sql\promql2sql\src\main\antlr

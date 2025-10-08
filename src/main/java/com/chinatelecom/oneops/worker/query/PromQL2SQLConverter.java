@@ -253,11 +253,35 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
             case "rate":{
                 return visitFuncRate(ctx.parameter(0));
             }
+            case "clamp":{
+                return visitFuncClamp(ctx.parameter(0), ctx.parameter(1).getText(),ctx.parameter(2).getText());
+            }
             default:
                 break;
         }
         return null;
     }
+
+    private SQLQuery visitFuncClamp(ParameterContext parameterContext,String lowValue,String highValue){
+        SQLQuery subQuery=null;
+        if(parameterContext.vectorOperation()!=null){
+            subQuery=visit(parameterContext.vectorOperation());
+        }
+        SQLQuery parentQuery=new SQLQuery();
+        String aliasName=getAliasName();
+        parentQuery.setTableNameWithQuery(subQuery,aliasName);
+        if(subQuery.getLabelFields()!=null){
+            for(FieldPart labelField:subQuery.getLabelFields()){
+                parentQuery.addLabelField(String.format("%s.%s",aliasName,labelField.getFieldName()),labelField.getFieldName());
+            }
+        }
+        String timeField=String.format("%s.%s" ,aliasName, subQuery.getTimeField().getFieldName());
+        parentQuery.setTimeField(timeField, subQuery.getTimeField().getFieldName());
+        String metricName=subQuery.getMetricField().getFieldName();
+        parentQuery.setMetricField(String.format("clamp(%s.%s,%s,%s) %s", aliasName, metricName,lowValue,highValue, metricName),metricName);
+        return parentQuery;
+    }
+
 
     private SQLQuery visitFuncTimestamp(ParameterContext parameterContext){
         SQLQuery subQuery=null;
@@ -271,9 +295,9 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
             for(FieldPart labelField:subQuery.getLabelFields()){
                 parentQuery.addLabelField(String.format("%s.%s",aliasName,labelField.getFieldName()),labelField.getFieldName());
             }
-            String metricName=subQuery.getTimeField().getFieldName();
-            parentQuery.setMetricField(String.format("%s.%s", aliasName, metricName),metricName);
         }
+        String metricName=subQuery.getTimeField().getFieldName();
+        parentQuery.setMetricField(String.format("%s.%s", aliasName, metricName),metricName);
         return parentQuery;
     }
 
@@ -289,9 +313,9 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
             for(FieldPart labelField:subQuery.getLabelFields()){
                 parentQuery.addLabelField(String.format("%s.%s",aliasName,labelField.getFieldName()),labelField.getFieldName());
             }
-            String metricName=subQuery.getMetricField().getFieldName();
-            parentQuery.setMetricField(String.format("extract (day from %s.%s) %s", aliasName, metricName,metricName),metricName);
         }
+        String metricName=subQuery.getMetricField().getFieldName();
+        parentQuery.setMetricField(String.format("extract (day from %s.%s) %s", aliasName, metricName,metricName),metricName);
         return parentQuery;
     }
 
@@ -307,11 +331,11 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
             for(FieldPart labelField:subQuery.getLabelFields()){
                 parentQuery.addLabelField(String.format("%s.%s",aliasName,labelField.getFieldName()),labelField.getFieldName());
             }
-            String timeField=String.format("%s.%s" ,aliasName, subQuery.getTimeField().getFieldName());
-            parentQuery.setTimeField(timeField, subQuery.getTimeField().getFieldName());
-            String metricName=subQuery.getMetricField().getFieldName();
-            parentQuery.setMetricField(String.format("%s(%s.%s) %s", mathName,aliasName, metricName,metricName),metricName);
         }
+        String timeField=String.format("%s.%s" ,aliasName, subQuery.getTimeField().getFieldName());
+        parentQuery.setTimeField(timeField, subQuery.getTimeField().getFieldName());
+        String metricName=subQuery.getMetricField().getFieldName();
+        parentQuery.setMetricField(String.format("%s(%s.%s) %s", mathName,aliasName, metricName,metricName),metricName);
         return parentQuery;
     }
 
@@ -323,8 +347,8 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
         SQLQuery parentQuery=new SQLQuery();
         String aliasName=getAliasName();
         parentQuery.setTableNameWithQuery(subQuery,aliasName);
+        StringBuffer labelFieldString=new StringBuffer();
         if(subQuery.getLabelFields()!=null){
-            StringBuffer labelFieldString=new StringBuffer();
             for(FieldPart labelField:subQuery.getLabelFields()){
                 String labelString= String.format("%s.%s",aliasName,labelField.getFieldName());
                 parentQuery.addLabelField(labelString,labelField.getFieldName());
@@ -334,17 +358,17 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
                 labelFieldString.insert(0, "partition by ");
                 labelFieldString.deleteCharAt(labelFieldString.length()-1).append(" ");
             }
-            String timeField=String.format("%s.%s" ,aliasName, subQuery.getTimeField().getFieldName());
-            parentQuery.setTimeField(timeField, subQuery.getTimeField().getFieldName());
-            String metricField=String.format("%s.%s",aliasName,subQuery.getMetricField().getFieldName());
-            ;
-            String metricName=subQuery.getMetricField().getFieldName();
-            parentQuery.setMetricField(String.format(
-                "safeDiv(%s-lag(%s) over (%sorder by %s),extract(epoch from (%s-lag(%s) over (%sorder by %s)))) %s",
-                    metricField,metricField,labelFieldString.toString(),timeField,timeField,timeField,
-                    labelFieldString.toString(),timeField,metricName),
-                metricName);
         }
+        String timeField=String.format("%s.%s" ,aliasName, subQuery.getTimeField().getFieldName());
+        parentQuery.setTimeField(timeField, subQuery.getTimeField().getFieldName());
+        String metricField=String.format("%s.%s",aliasName,subQuery.getMetricField().getFieldName());
+        ;
+        String metricName=subQuery.getMetricField().getFieldName();
+        parentQuery.setMetricField(String.format(
+            "safeDiv(%s-lag(%s) over (%sorder by %s),extract(epoch from (%s-lag(%s) over (%sorder by %s)))) %s",
+                metricField,metricField,labelFieldString.toString(),timeField,timeField,timeField,
+                labelFieldString.toString(),timeField,metricName),
+            metricName);
         return parentQuery;
     }
 
