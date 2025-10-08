@@ -25,8 +25,11 @@ import com.chinatelecom.oneops.worker.query.generate.PromQLParser.LabelMatcherCo
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.MatrixSelectorContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.OffsetContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.ParameterContext;
+import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorContext;
+import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4atContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4subqueryContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4vectorContext;
+import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperationContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParserBaseVisitor;
 
 /**
@@ -39,6 +42,11 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
      * 定义默认延迟的时间为2分钟，超过这个时间的数据不进行查询
      */
     private static final int DELAY_TIME = 2; 
+
+    private static final String PLACEHOLDER_START_TIME="${start_time}";
+
+    private static final String PLACEHOLDER_END_TIME="${end_time}";
+
     private IMetricFinder metricFinder;
     private int aliasIndex=0;
 
@@ -126,8 +134,9 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
             }
             conditionString.delete(conditionString.length()-5,conditionString.length());
         } 
-        token.insertCondition(0,String.format("%s=(select %s from %s where %s>now() - interval '%d min' and %s<now()%s order by %s desc limit 1)",
-            timeExpression,FIELD_TIME,metricTableName,FIELD_TIME, DELAY_TIME, FIELD_TIME,conditionString.toString(),FIELD_TIME));
+        token.insertCondition(0,String.format("%s=(select %s from %s where %s>%s - interval '%d min' and %s<%s%s order by %s desc limit 1)",
+            timeExpression,FIELD_TIME,metricTableName,FIELD_TIME, PLACEHOLDER_START_TIME,DELAY_TIME, FIELD_TIME,
+                PLACEHOLDER_END_TIME,conditionString.toString(),FIELD_TIME));
         token.addGroup(timeExpression);
         for(String label:labels){
             token.addGroup(String.format("%s.%s",aliasName,label));
@@ -143,8 +152,10 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
     public SQLQuery visitMatrixSelector(MatrixSelectorContext ctx) {
         SQLQuery instanceToken=visit(ctx.instantSelector());
         //替换默认时间查询条件
-        instanceToken.getCondition(0).setCondition(String.format("%s.%s between now() - interval '%s' and now()",
-            instanceToken.getTableAlias(),FIELD_TIME,getDurationExpression(ctx.TIME_RANGE().getText())));
+        instanceToken.getCondition(0).setCondition(String.format("%s.%s between %s - interval '%s' and %s",
+            instanceToken.getTableAlias(),FIELD_TIME,PLACEHOLDER_START_TIME,
+            getDurationExpression(ctx.TIME_RANGE().getText()),PLACEHOLDER_END_TIME
+            ));
         return instanceToken;
     }
 
@@ -153,8 +164,9 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
         SQLQuery instanceToken=visit(ctx.vectorOperation());
         //替换默认时间查询条件
         String[] subRange=ctx.subqueryOp().SUBQUERY_RANGE().getText().split(":");
-        instanceToken.getCondition(0).setCondition(String.format("%s.%s between now() - interval '%s' and now()",
-            instanceToken.getTableAlias(),FIELD_TIME,getDurationExpression(subRange[0])));
+        instanceToken.getCondition(0).setCondition(String.format("%s.%s between %s - interval '%s' and %s",
+            instanceToken.getTableAlias(),FIELD_TIME,PLACEHOLDER_START_TIME,
+            getDurationExpression(subRange[0]),PLACEHOLDER_END_TIME));
         if(subRange[1].length()>1){
             String bucketDuration=String.format("time_bucket('%s',%s.%s)",
                 getDurationExpression(subRange[1]),instanceToken.getTableAlias(),FIELD_TIME);
@@ -216,20 +228,21 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
 
     @Override
     public SQLQuery visitOffset(OffsetContext ctx) {
-        SQLQuery token=null;
+        SQLQuery subQuery=null;
         if (ctx.instantSelector()!=null){
-            token=visit(ctx.instantSelector());
+            subQuery=visit(ctx.instantSelector());
         } else{
-            token=visit(ctx.matrixSelector());
+            subQuery=visit(ctx.matrixSelector());
         }
         String offsetDuration=getDurationExpression(ctx.DURATION().getText());
-        ConditionPart timeCondition=token.getCondition(0);
-        String offsetCondition=timeCondition.getCondition().replace("now()", String.format("now() - interval '%s'",offsetDuration));
+        ConditionPart timeCondition=subQuery.getCondition(0);
+        String offsetCondition=timeCondition.getCondition()
+            .replace(PLACEHOLDER_START_TIME, String.format("%s - interval '%s'",PLACEHOLDER_START_TIME, offsetDuration))
+            .replace(PLACEHOLDER_END_TIME, String.format("%s - interval '%s'",PLACEHOLDER_END_TIME, offsetDuration))
+            ;
         timeCondition.setCondition(offsetCondition);
-        return token;
+        return subQuery;
     }
-
-    
 
     @Override
     public SQLQuery visitFunction_(Function_Context ctx) {
@@ -372,14 +385,32 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
         return parentQuery;
     }
 
-    public String convertPromQL(String promQL) {
+    
+
+    @Override
+    public SQLQuery visitVectorOperation4at(VectorOperation4atContext ctx) {
+        SQLQuery subQuery=visit(ctx.vectorOperation(0));
+        VectorContext modifierContext = (VectorContext) ctx.vectorOperation(1).getChild(0);
+        if(modifierContext.literal()!=null){
+            String fixedModifier=modifierContext.literal().getText();
+            ConditionPart timeCondition=subQuery.getCondition(0);
+            String newTime=String.format("TO_TIMESTAMP(%s)",fixedModifier);
+            String offsetCondition=timeCondition.getCondition().replace(PLACEHOLDER_START_TIME, newTime)
+                .replace(PLACEHOLDER_END_TIME,newTime );
+            timeCondition.setCondition(offsetCondition);
+        }
+        return subQuery;
+    }
+
+    public String convertPromQL(String promQL,String startTime,String endTime) {
         CharStream input=CharStreams.fromString(promQL);
         PromQLLexer lexer=new PromQLLexer(input);
         CommonTokenStream tokens=new CommonTokenStream(lexer);
         PromQLParser parser=new PromQLParser(tokens);
         ParseTree tree=parser.expression();
         SQLQuery result= this.visit(tree);
-        return result.getSql();
+        String withoutDurationSql=result.getSql();
+        return withoutDurationSql.replace(PLACEHOLDER_START_TIME,startTime).replace(PLACEHOLDER_END_TIME, endTime);
     }
     
     

@@ -1,1 +1,1 @@
-http_requests_total @ 1609746000
+node_cpu_seconds_total @ 1609746000
