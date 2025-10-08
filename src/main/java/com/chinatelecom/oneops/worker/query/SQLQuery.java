@@ -8,12 +8,15 @@ import com.chinatelecom.oneops.worker.query.entity.FieldPart;
 import com.chinatelecom.oneops.worker.query.entity.GroupPart;
 import com.chinatelecom.oneops.worker.query.entity.LimitPart;
 import com.chinatelecom.oneops.worker.query.entity.OrderPart;
+import com.chinatelecom.oneops.worker.query.entity.SubQueryTablePart;
 import com.chinatelecom.oneops.worker.query.entity.TablePart;
 
-public class SQLToken {
+public class SQLQuery {
 
     private TablePart tablePart=null;
-    private List<FieldPart> fieldsPart=null;
+    private FieldPart timePart=null;
+    private List<FieldPart> labelsPart=null;
+    private FieldPart metricPart=null;
     private List<ConditionPart> conditionsPart=null;
     private List<OrderPart> ordersPart=null;
     private List<GroupPart> groupsPart=null;
@@ -21,15 +24,23 @@ public class SQLToken {
     
     public String getSql() {
         StringBuffer sql=new StringBuffer("select ");
-        if(fieldsPart!=null){
-            for(FieldPart fieldPart:fieldsPart){
+        if(timePart!=null){
+            sql.append(timePart.getExpression());
+            sql.append(",");
+        }
+        if(labelsPart!=null){
+            for(FieldPart fieldPart:labelsPart){
                 sql.append(fieldPart.getExpression());
                 sql.append(",");
             }
-            sql.deleteCharAt(sql.length()-1);
         }
+        if(metricPart!=null){
+            sql.append(metricPart.getExpression());
+            sql.append(",");
+        }
+        sql.deleteCharAt(sql.length()-1);
         sql.append(" from ");
-        sql.append(tablePart.getMetricName());
+        sql.append(tablePart.getSql());
         sql.append(" ");
         sql.append(tablePart.getAliasName());
         if(conditionsPart!=null){
@@ -76,24 +87,42 @@ public class SQLToken {
         tablePart=new TablePart(metricName, aliasName);
     }
 
+    
+    public void setTableNameWithQuery(SQLQuery subQuery, String aliasName) {
+        tablePart=new SubQueryTablePart(subQuery, aliasName); 
+    }
+
     public String getTableAlias(){
         return tablePart.getAliasName();
     }
 
-    public void addField(String expression) {
-        if (fieldsPart==null) {
-            fieldsPart=new ArrayList<FieldPart>();
+    public void addLabelField(String expression,String fieldName) {
+        if (labelsPart==null) {
+            labelsPart=new ArrayList<FieldPart>();
         }
-        fieldsPart.add(new FieldPart(expression));
+        labelsPart.add(new FieldPart(expression,fieldName));
     }
 
     
+    public List<FieldPart> getLabelFields() {
+        return labelsPart;
+    }
 
-    public FieldPart getField(int index) {
-        if(fieldsPart!=null && index>=0 && index<fieldsPart.size()){
-            return fieldsPart.get(index);
-        }   
-        return null; 
+    public void setMetricField(String expression,String fieldName) {
+        metricPart=new FieldPart(expression,fieldName);
+    }
+
+    
+    public FieldPart getMetricField() {
+        return metricPart;
+    }
+
+    public void setTimeField(String expression,String fieldName) {
+        timePart=new FieldPart(expression,fieldName);
+    }
+
+    public FieldPart getTimeField() {
+        return timePart;
     }
 
     public void setLimit(int limit) {
@@ -112,7 +141,7 @@ public class SQLToken {
         if (ordersPart==null){
             ordersPart=new ArrayList<OrderPart>();
         }
-        ordersPart.add(new OrderPart(new FieldPart(expression), isAsc));
+        ordersPart.add(new OrderPart(new FieldPart(expression,null), isAsc));
     }
 
     public OrderPart getOrder(int index) {
@@ -156,6 +185,7 @@ public class SQLToken {
         }
         return null;
     }
+
 
 
 

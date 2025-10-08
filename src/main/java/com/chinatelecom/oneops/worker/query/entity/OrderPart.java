@@ -29,7 +29,7 @@ public class OrderPart {
     }
 
     public void setExpression(String expression,boolean isAsc) {
-        this.orderField=new FieldPart(expression);
+        this.orderField=new FieldPart(expression,null);
         this.isAsc=isAsc;
     }
 

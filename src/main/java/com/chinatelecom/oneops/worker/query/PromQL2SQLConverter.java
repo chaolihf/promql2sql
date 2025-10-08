@@ -9,14 +9,17 @@ import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.ParseTree;
 
 import com.chinatelecom.oneops.worker.query.entity.ConditionPart;
+import com.chinatelecom.oneops.worker.query.entity.FieldPart;
 import com.chinatelecom.oneops.worker.query.generate.PromQLLexer;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.ExpressionContext;
+import com.chinatelecom.oneops.worker.query.generate.PromQLParser.Function_Context;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.InstantSelector4labelMatcherListContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.InstantSelector4metricNameContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.LabelMatcherContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.MatrixSelectorContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.OffsetContext;
+import com.chinatelecom.oneops.worker.query.generate.PromQLParser.ParameterContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4subqueryContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4vectorContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParserBaseVisitor;
@@ -24,7 +27,7 @@ import com.chinatelecom.oneops.worker.query.generate.PromQLParserBaseVisitor;
 /**
  * 根据promQL生成SQL
  */
-public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
+public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
 
     private final static String FIELD_TIME="receivetime";
     /**
@@ -43,18 +46,18 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
     }
 
     @Override
-    public SQLToken visitExpression(ExpressionContext ctx) {
+    public SQLQuery visitExpression(ExpressionContext ctx) {
         return visit(ctx.vectorOperation());
     }
 
 
     @Override
-    public SQLToken visitVectorOperation4vector(VectorOperation4vectorContext ctx) {
+    public SQLQuery visitVectorOperation4vector(VectorOperation4vectorContext ctx) {
         return visit(ctx.vector());
     }
 
     @Override
-    public SQLToken visitInstantSelector4metricName(InstantSelector4metricNameContext ctx) {
+    public SQLQuery visitInstantSelector4metricName(InstantSelector4metricNameContext ctx) {
         List<String[]> labelMatchers=null;
         if(ctx.labelMatcherList()!=null){
             labelMatchers=new ArrayList<>();
@@ -62,7 +65,7 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
                 labelMatchers.add(new String[]{
                     labelMatcher.labelName().getText(),
                     labelMatcher.labelMatcherOperator().getText(),
-                    labelMatcher.STRING().getText()
+                    formatString(labelMatcher.STRING().getText())
                 });
             }
         } 
@@ -70,7 +73,7 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
     }
 
     @Override
-    public SQLToken visitInstantSelector4labelMatcherList(InstantSelector4labelMatcherListContext ctx) {
+    public SQLQuery visitInstantSelector4labelMatcherList(InstantSelector4labelMatcherListContext ctx) {
         List<String[]> labelMatchers=null;
         String metricName=null;
         for(LabelMatcherContext labelMatcher : ctx.labelMatcherList().labelMatcher()){
@@ -82,7 +85,7 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
                     labelMatchers=new ArrayList<>();
                 }
                 labelMatchers.add(new String[]{
-                    labelName,labelMatcher.labelMatcherOperator().getText(),labelMatcher.STRING().getText()
+                    labelName,labelMatcher.labelMatcherOperator().getText(),formatString(labelMatcher.STRING().getText())
                 });
             }
             
@@ -90,18 +93,25 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
         return generateInstantToken(metricName,labelMatchers);
     }
 
-    private SQLToken generateInstantToken(String metricName,List<String[]> labelMatchers){
-        SQLToken token = new SQLToken();
+    private String formatString(String value){
+        if (value.startsWith("\"")) {
+            return String.format("\'%s\'",value.substring(1, value.length()-1));
+        }
+        return value; 
+    }
+
+    private SQLQuery generateInstantToken(String metricName,List<String[]> labelMatchers){
+        SQLQuery token = new SQLQuery();
         String metricTableName=metricFinder.findTableName(metricName);
         List<String> labels=metricFinder.getMetricLabels(metricTableName);
         String aliasName=getAliasName();
         token.setTableNameWithAlias(metricTableName, aliasName);
         String timeExpression=String.format("%s.%s",aliasName,FIELD_TIME);
-        token.addField(timeExpression);
+        token.setTimeField(timeExpression,FIELD_TIME);
         for(String label:labels){
-            token.addField(String.format("%s.%s",aliasName,label));
+            token.addLabelField(String.format("%s.%s",aliasName,label),label);
         }
-        token.addField(String.format("last(%s.%s,%s) %s",aliasName,metricName,timeExpression,metricName));
+        token.setMetricField(String.format("last(%s.%s,%s) %s",aliasName,metricName,timeExpression,metricName),metricName);
         StringBuffer conditionString=new StringBuffer();
         if(labelMatchers!=null){
             conditionString.append(" and ");
@@ -125,8 +135,8 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
     }
 
     @Override
-    public SQLToken visitMatrixSelector(MatrixSelectorContext ctx) {
-        SQLToken instanceToken=visit(ctx.instantSelector());
+    public SQLQuery visitMatrixSelector(MatrixSelectorContext ctx) {
+        SQLQuery instanceToken=visit(ctx.instantSelector());
         //替换默认时间查询条件
         instanceToken.getCondition(0).setCondition(String.format("%s.%s between now() - interval '%s' and now()",
             instanceToken.getTableAlias(),FIELD_TIME,getDurationExpression(ctx.TIME_RANGE().getText())));
@@ -134,8 +144,8 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
     }
 
     @Override
-    public SQLToken visitVectorOperation4subquery(VectorOperation4subqueryContext ctx) {
-        SQLToken instanceToken=visit(ctx.vectorOperation());
+    public SQLQuery visitVectorOperation4subquery(VectorOperation4subqueryContext ctx) {
+        SQLQuery instanceToken=visit(ctx.vectorOperation());
         //替换默认时间查询条件
         String[] subRange=ctx.subqueryOp().SUBQUERY_RANGE().getText().split(":");
         instanceToken.getCondition(0).setCondition(String.format("%s.%s between now() - interval '%s' and now()",
@@ -143,7 +153,7 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
         if(subRange[1].length()>1){
             String bucketDuration=String.format("time_bucket('%s',%s.%s)",
                 getDurationExpression(subRange[1]),instanceToken.getTableAlias(),FIELD_TIME);
-            instanceToken.getField(0).setExpression(String.format("%s %s",bucketDuration,FIELD_TIME));
+            instanceToken.setTimeField(String.format("%s %s",bucketDuration,FIELD_TIME),FIELD_TIME);
             instanceToken.getGroup(0).setGroup(bucketDuration);
             instanceToken.getOrder(0).setExpression(bucketDuration,true);
         }
@@ -200,8 +210,8 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
     }
 
     @Override
-    public SQLToken visitOffset(OffsetContext ctx) {
-        SQLToken token=null;
+    public SQLQuery visitOffset(OffsetContext ctx) {
+        SQLQuery token=null;
         if (ctx.instantSelector()!=null){
             token=visit(ctx.instantSelector());
         } else{
@@ -214,13 +224,67 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLToken>{
         return token;
     }
 
+    
+
+    @Override
+    public SQLQuery visitFunction_(Function_Context ctx) {
+        String functionName=ctx.FUNCTION().getText();
+        switch (functionName) {
+            case "timestamp":{
+                return visitFuncTimestamp(ctx.parameter(0));
+            }
+            case "day_of_month":{
+                return visitFuncDayOfMonth(ctx.parameter(0));
+            }
+            default:
+                break;
+        }
+        return null;
+    }
+
+    private SQLQuery visitFuncTimestamp(ParameterContext parameterContext){
+        SQLQuery subQuery=null;
+        if(parameterContext.vectorOperation()!=null){
+            subQuery=visit(parameterContext.vectorOperation());
+        }
+        SQLQuery parentQuery=new SQLQuery();
+        String aliasName=getAliasName();
+        parentQuery.setTableNameWithQuery(subQuery,aliasName);
+        if(subQuery.getLabelFields()!=null){
+            for(FieldPart labelField:subQuery.getLabelFields()){
+                parentQuery.addLabelField(String.format("%s.%s",aliasName,labelField.getFieldName()),labelField.getFieldName());
+            }
+            String metricName=subQuery.getTimeField().getFieldName();
+            parentQuery.setMetricField(String.format("%s.%s", aliasName, metricName),metricName);
+        }
+        return parentQuery;
+    }
+
+    private SQLQuery visitFuncDayOfMonth(ParameterContext parameterContext){
+        SQLQuery subQuery=null;
+        if(parameterContext.vectorOperation()!=null){
+            subQuery=visit(parameterContext.vectorOperation());
+        }
+        SQLQuery parentQuery=new SQLQuery();
+        String aliasName=getAliasName();
+        parentQuery.setTableNameWithQuery(subQuery,aliasName);
+        if(subQuery.getLabelFields()!=null){
+            for(FieldPart labelField:subQuery.getLabelFields()){
+                parentQuery.addLabelField(String.format("%s.%s",aliasName,labelField.getFieldName()),labelField.getFieldName());
+            }
+            String metricName=subQuery.getMetricField().getFieldName();
+            parentQuery.setMetricField(String.format("extract (day from %s.%s) %s", aliasName, metricName,metricName),metricName);
+        }
+        return parentQuery;
+    }
+
     public String convertPromQL(String promQL) {
         CharStream input=CharStreams.fromString(promQL);
         PromQLLexer lexer=new PromQLLexer(input);
         CommonTokenStream tokens=new CommonTokenStream(lexer);
         PromQLParser parser=new PromQLParser(tokens);
         ParseTree tree=parser.expression();
-        SQLToken result= this.visit(tree);
+        SQLQuery result= this.visit(tree);
         return result.getSql();
     }
     

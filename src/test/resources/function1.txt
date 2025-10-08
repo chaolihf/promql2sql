@@ -1,1 +1,1 @@
-day_of_month(timestamp(up{job="prometheus"}))
+day_of_month(timestamp(node_network_up{device="eth0"}))
