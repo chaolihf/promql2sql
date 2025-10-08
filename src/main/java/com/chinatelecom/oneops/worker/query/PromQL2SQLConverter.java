@@ -1,7 +1,12 @@
 package com.chinatelecom.oneops.worker.query;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
@@ -229,12 +234,24 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
     @Override
     public SQLQuery visitFunction_(Function_Context ctx) {
         String functionName=ctx.FUNCTION().getText();
+        Map<String,String> mathMap=new HashMap<>(){{
+            put("abs","abs");put("ceil","ceil");put("exp","exp");put("floor","floor");put("ln","ln");put("log2","log2");
+            put("log10","log10");put("round","round"); put("sgn","sign");put("sqrt","sqrt");put("acos","");
+            put("acosh","acosh");put("asin","asin");put("asinh","asinh");put("atan","atan");put("atanh","atan");put("cos","cos");
+            put("cosh","cosh");put("sin","sin");put("sinh","sinh");put("tan","tang");put("tanh","tanh");
+        }};
+        if(mathMap.containsKey(functionName)){
+            return visitFunc4Math(ctx.parameter(0),mathMap.get(functionName));
+        }
         switch (functionName) {
             case "timestamp":{
                 return visitFuncTimestamp(ctx.parameter(0));
             }
             case "day_of_month":{
                 return visitFuncDayOfMonth(ctx.parameter(0));
+            }
+            case "rate":{
+                return visitFuncRate(ctx.parameter(0));
             }
             default:
                 break;
@@ -274,6 +291,59 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
             }
             String metricName=subQuery.getMetricField().getFieldName();
             parentQuery.setMetricField(String.format("extract (day from %s.%s) %s", aliasName, metricName,metricName),metricName);
+        }
+        return parentQuery;
+    }
+
+    private SQLQuery visitFunc4Math(ParameterContext parameterContext,String mathName){
+        SQLQuery subQuery=null;
+        if(parameterContext.vectorOperation()!=null){
+            subQuery=visit(parameterContext.vectorOperation());
+        }
+        SQLQuery parentQuery=new SQLQuery();
+        String aliasName=getAliasName();
+        parentQuery.setTableNameWithQuery(subQuery,aliasName);
+        if(subQuery.getLabelFields()!=null){
+            for(FieldPart labelField:subQuery.getLabelFields()){
+                parentQuery.addLabelField(String.format("%s.%s",aliasName,labelField.getFieldName()),labelField.getFieldName());
+            }
+            String timeField=String.format("%s.%s" ,aliasName, subQuery.getTimeField().getFieldName());
+            parentQuery.setTimeField(timeField, subQuery.getTimeField().getFieldName());
+            String metricName=subQuery.getMetricField().getFieldName();
+            parentQuery.setMetricField(String.format("%s(%s.%s) %s", mathName,aliasName, metricName,metricName),metricName);
+        }
+        return parentQuery;
+    }
+
+    private SQLQuery visitFuncRate(ParameterContext parameterContext){
+        SQLQuery subQuery=null;
+        if(parameterContext.vectorOperation()!=null){
+            subQuery=visit(parameterContext.vectorOperation());
+        }
+        SQLQuery parentQuery=new SQLQuery();
+        String aliasName=getAliasName();
+        parentQuery.setTableNameWithQuery(subQuery,aliasName);
+        if(subQuery.getLabelFields()!=null){
+            StringBuffer labelFieldString=new StringBuffer();
+            for(FieldPart labelField:subQuery.getLabelFields()){
+                String labelString= String.format("%s.%s",aliasName,labelField.getFieldName());
+                parentQuery.addLabelField(labelString,labelField.getFieldName());
+                labelFieldString.append(labelString).append(",");
+            }
+            if(labelFieldString.length()>0){
+                labelFieldString.insert(0, "partition by ");
+                labelFieldString.deleteCharAt(labelFieldString.length()-1).append(" ");
+            }
+            String timeField=String.format("%s.%s" ,aliasName, subQuery.getTimeField().getFieldName());
+            parentQuery.setTimeField(timeField, subQuery.getTimeField().getFieldName());
+            String metricField=String.format("%s.%s",aliasName,subQuery.getMetricField().getFieldName());
+            ;
+            String metricName=subQuery.getMetricField().getFieldName();
+            parentQuery.setMetricField(String.format(
+                "safeDiv(%s-lag(%s) over (%sorder by %s),extract(epoch from (%s-lag(%s) over (%sorder by %s)))) %s",
+                    metricField,metricField,labelFieldString.toString(),timeField,timeField,timeField,
+                    labelFieldString.toString(),timeField,metricName),
+                metricName);
         }
         return parentQuery;
     }

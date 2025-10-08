@@ -4,6 +4,22 @@
 # antlr4语法文件
 来源于 https://github.com/antlr/grammars-v4/tree/master/promql
 
+# 扩充Postgresql自定义函数
+
+```
+CREATE OR REPLACE FUNCTION public.safeDiv(numerator NUMERIC, denominator NUMERIC)
+RETURNS NUMERIC AS $$
+BEGIN
+    IF COALESCE(numerator,0)=0 or COALESCE(denominator,0)=0 or denominator = 0 THEN
+        return 0;
+    ELSE
+        RETURN numerator / denominator;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+```
+示例：  safeDivide(2,1)=2; safeDivide(2,0)=0;
+
 # 编译生成
 pip install antlr4-tools
 cd D:\tools\java\workspace\promql2sql\promql2sql\src\main\antlr
