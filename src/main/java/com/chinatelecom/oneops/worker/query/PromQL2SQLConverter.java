@@ -1,12 +1,9 @@
 package com.chinatelecom.oneops.worker.query;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
@@ -17,11 +14,14 @@ import com.chinatelecom.oneops.worker.query.entity.ConditionPart;
 import com.chinatelecom.oneops.worker.query.entity.FieldPart;
 import com.chinatelecom.oneops.worker.query.generate.PromQLLexer;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser;
+import com.chinatelecom.oneops.worker.query.generate.PromQLParser.AggregationContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.ExpressionContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.Function_Context;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.InstantSelector4labelMatcherListContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.InstantSelector4metricNameContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.LabelMatcherContext;
+import com.chinatelecom.oneops.worker.query.generate.PromQLParser.LabelNameContext;
+import com.chinatelecom.oneops.worker.query.generate.PromQLParser.LabelNameListContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.MatrixSelectorContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.OffsetContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.ParameterContext;
@@ -29,7 +29,6 @@ import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4atContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4subqueryContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4vectorContext;
-import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperationContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParserBaseVisitor;
 
 /**
@@ -400,6 +399,64 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
             timeCondition.setCondition(offsetCondition);
         }
         return subQuery;
+    }
+
+    
+
+    @Override
+    public SQLQuery visitAggregation(AggregationContext ctx) {
+        String aggrOperator=ctx.AGGREGATION_OPERATOR().getText();
+        List<String> labelNames=null;
+        LabelNameListContext labelNameListCtx=null;
+        boolean isWithBy=true;
+        if( ctx.by()!=null){
+            labelNameListCtx=ctx.by().labelNameList();
+        } else if (ctx.without()!=null){
+            labelNameListCtx=ctx.without().labelNameList();
+            isWithBy=false;
+        }
+        if(labelNameListCtx!=null){
+            labelNames=new ArrayList<>();
+            for(LabelNameContext lableNameContext:labelNameListCtx.labelName()){
+                labelNames.add(lableNameContext.getText());
+            }
+        }
+        
+        switch (aggrOperator) {
+            case "sum":
+            case "min":
+            case "max":
+            case "avg":
+            case "count":
+                return visitAggregationSingleParam(aggrOperator,ctx.parameterList().parameter(0),isWithBy,labelNames);
+            default:
+                break;
+        }
+        return super.visitAggregation(ctx);
+    }
+
+    private SQLQuery visitAggregationSingleParam(String aggrOperator,ParameterContext parameter, boolean isWithBy, List<String> labelNames) {
+        SQLQuery subQuery=null;
+        if(parameter.vectorOperation()!=null){
+            subQuery=visit(parameter.vectorOperation());
+        }
+        SQLQuery parentQuery=new SQLQuery();
+        String aliasName=getAliasName();
+        parentQuery.setTableNameWithQuery(subQuery,aliasName);
+        
+        String timeField=String.format("%s.%s" ,aliasName, subQuery.getTimeField().getFieldName());
+        parentQuery.setTimeField(timeField, subQuery.getTimeField().getFieldName());
+        String metricName=subQuery.getMetricField().getFieldName();
+        parentQuery.setMetricField(String.format("%s(%s.%s) %s", aggrOperator,aliasName, metricName,metricName),metricName);
+        parentQuery.addGroup(timeField);
+        if(labelNames!=null){
+            for(String labelName:labelNames){
+                String labelField=String.format("%s.%s",aliasName,labelName);
+                parentQuery.addLabelField(labelField,labelName);
+                parentQuery.addGroup(labelField);
+            }
+        }
+        return parentQuery;
     }
 
     public String convertPromQL(String promQL,String startTime,String endTime) {

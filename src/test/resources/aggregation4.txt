@@ -1,0 +1,2 @@
+sum(rate(node_cpu_seconds_total{$tag="$host"}[$interval])) by (mode) * 100 / count(node_cpu_seconds_total{$tag="$host"}) by (mode) 
+or sum(irate(node_cpu_seconds_total{$tag="$host"}[5m])) by (mode) * 100 / count(node_cpu_seconds_total{$tag="$host"}) by (mode)

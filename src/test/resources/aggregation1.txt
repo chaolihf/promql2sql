@@ -1,1 +1,1 @@
-count_values ('pod', container_cpu_usage_seconds_total) by (node)
+count(node_cpu_seconds_total{object_id="6cce615e-8afa-4bde-a648-b4163a0ee957"}) by (mode) 
