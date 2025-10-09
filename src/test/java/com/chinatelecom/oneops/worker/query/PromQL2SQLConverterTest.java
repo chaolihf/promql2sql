@@ -36,6 +36,8 @@ public class PromQL2SQLConverterTest {
     @Test
     public void testConvert() throws IOException{
         String[] testSources=new String[]{
+            "aggregation5",
+            "aggregation3",
             "aggregation2",
             "aggregation1",
             "duration",
@@ -53,6 +55,7 @@ public class PromQL2SQLConverterTest {
             "instant_selector4"
         };
         String[] testResults = new String[] {
+                "select a1.receivetime,a1.cpu,a1.mode,last(a1.node_cpu_seconds_total,a1.receivetime) node_cpu_seconds_total from (select a0.receivetime,a0.cpu,a0.mode,last(a0.node_cpu_seconds_total,a0.receivetime) node_cpu_seconds_total from linux_cpu_mode_info a0 where a0.receivetime between now() - interval '1 min' and now() group by a0.receivetime,a0.cpu,a0.mode order by a0.receivetime asc,a0.cpu asc,a0.mode asc) a1 group by a1.receivetime,a1.cpu,a1.mode",
                 "select a1.receivetime,a1.node_cpu_seconds_total total_count,a1.mode,count(1) node_cpu_seconds_total from (select a0.receivetime,a0.cpu,a0.mode,last(a0.node_cpu_seconds_total,a0.receivetime) node_cpu_seconds_total from linux_cpu_mode_info a0 where a0.receivetime=(select receivetime from linux_cpu_mode_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) group by a0.receivetime,a0.cpu,a0.mode order by a0.receivetime asc,a0.cpu asc,a0.mode asc) a1 group by a1.receivetime,a1.node_cpu_seconds_total,a1.mode",
                 "select a1.receivetime,a1.mode,count(a1.node_cpu_seconds_total) node_cpu_seconds_total from (select a0.receivetime,a0.cpu,a0.mode,last(a0.node_cpu_seconds_total,a0.receivetime) node_cpu_seconds_total from linux_cpu_mode_info a0 where a0.receivetime=(select receivetime from linux_cpu_mode_info where receivetime>now() - interval '2 min' and receivetime<now() and object_id='6cce615e-8afa-4bde-a648-b4163a0ee957' order by receivetime desc limit 1) and a0.object_id='6cce615e-8afa-4bde-a648-b4163a0ee957' group by a0.receivetime,a0.cpu,a0.mode order by a0.receivetime asc,a0.cpu asc,a0.mode asc) a1 group by a1.receivetime,a1.mode",
                 "select a0.receivetime,a0.namespace,a0.pod,last(a0.container_cpu_usage_seconds_total,a0.receivetime) container_cpu_usage_seconds_total from container_pod_cpu_info a0 where a0.receivetime=(select receivetime from container_pod_cpu_info where receivetime>now() - interval '1 year 5 min 900 millisecond' - interval '2 min' and receivetime<now() - interval '1 year 5 min 900 millisecond' order by receivetime desc limit 1) group by a0.receivetime,a0.namespace,a0.pod order by a0.receivetime asc,a0.namespace asc,a0.pod asc",

@@ -114,38 +114,38 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
     }
 
     private SQLQuery generateInstantToken(String metricName,List<String[]> labelMatchers){
-        SQLQuery token = new SQLQuery();
+        SQLQuery subQuery = new SQLQuery();
         String metricTableName=metricFinder.findTableName(metricName);
         List<String> labels=metricFinder.getMetricLabels(metricTableName);
         String aliasName=getAliasName();
-        token.setTableNameWithAlias(metricTableName, aliasName);
+        subQuery.setTableNameWithAlias(metricTableName, aliasName);
         String timeExpression=String.format("%s.%s",aliasName,FIELD_TIME);
-        token.setTimeField(timeExpression,FIELD_TIME);
+        subQuery.setTimeField(timeExpression,FIELD_TIME);
         for(String label:labels){
-            token.addLabelField(String.format("%s.%s",aliasName,label),label);
+            subQuery.addLabelField(String.format("%s.%s",aliasName,label),label);
         }
-        token.setMetricField(String.format("last(%s.%s,%s) %s",aliasName,metricName,timeExpression,metricName),metricName);
+        subQuery.setMetricField(String.format("last(%s.%s,%s) %s",aliasName,metricName,timeExpression,metricName),metricName);
         StringBuffer conditionString=new StringBuffer();
         if(labelMatchers!=null){
             conditionString.append(" and ");
             for(String[] labelMatcher : labelMatchers){
-                token.addCondition(String.format("%s.%s%s%s",aliasName,labelMatcher[0],labelMatcher[1],labelMatcher[2]));
+                subQuery.addCondition(String.format("%s.%s%s%s",aliasName,labelMatcher[0],labelMatcher[1],labelMatcher[2]));
                 conditionString.append(String.format("%s%s%s",labelMatcher[0],labelMatcher[1],labelMatcher[2])).append(" and ");
             }
             conditionString.delete(conditionString.length()-5,conditionString.length());
         } 
-        token.insertCondition(0,String.format("%s=(select %s from %s where %s>%s - interval '%d min' and %s<%s%s order by %s desc limit 1)",
+        subQuery.insertCondition(0,String.format("%s=(select %s from %s where %s>%s - interval '%d min' and %s<%s%s order by %s desc limit 1)",
             timeExpression,FIELD_TIME,metricTableName,FIELD_TIME, PLACEHOLDER_START_TIME,DELAY_TIME, FIELD_TIME,
                 PLACEHOLDER_END_TIME,conditionString.toString(),FIELD_TIME));
-        token.addGroup(timeExpression);
+        subQuery.addGroup(timeExpression);
         for(String label:labels){
-            token.addGroup(String.format("%s.%s",aliasName,label));
+            subQuery.addGroup(String.format("%s.%s",aliasName,label));
         }  
-        token.addOrder(timeExpression, true);
+        subQuery.addOrder(timeExpression, true);
         for(String label:labels){
-            token.addOrder(String.format("%s.%s",aliasName,label),true);
+            subQuery.addOrder(String.format("%s.%s",aliasName,label),true);
         }
-        return token;
+        return subQuery;
     }
 
     @Override
@@ -252,6 +252,9 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
             put("log10","log10");put("round","round"); put("sgn","sign");put("sqrt","sqrt");put("acos","");
             put("acosh","acosh");put("asin","asin");put("asinh","asinh");put("atan","atan");put("atanh","atan");put("cos","cos");
             put("cosh","cosh");put("sin","sin");put("sinh","sinh");put("tan","tang");put("tanh","tanh");
+            put("max_over_time","max");put("avg_over_time","avg");put("min_over_time","min");put("sum_over_time","sum");
+            put("count_over_time","count");put("stddev_over_time","stddev");put("stdvar_over_time","stddev_pop");
+            
         }};
         if(mathMap.containsKey(functionName)){
             return visitFunc4Math(ctx.parameter(0),mathMap.get(functionName));
@@ -269,10 +272,38 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
             case "clamp":{
                 return visitFuncClamp(ctx.parameter(0), ctx.parameter(1).getText(),ctx.parameter(2).getText());
             }
+            case "last_over_time":{
+                return visitFunc4Last(ctx.parameter(0));
+            }
             default:
                 break;
         }
         return null;
+    }
+
+    private SQLQuery visitFunc4Last(ParameterContext parameterContext){
+        SQLQuery subQuery=null;
+        if(parameterContext.vectorOperation()!=null){
+            subQuery=visit(parameterContext.vectorOperation());
+        }
+        SQLQuery parentQuery=new SQLQuery();
+        String aliasName=getAliasName();
+        parentQuery.setTableNameWithQuery(subQuery,aliasName);
+        String timeField=String.format("%s.%s" ,aliasName, subQuery.getTimeField().getFieldName());
+        parentQuery.setTimeField(timeField, subQuery.getTimeField().getFieldName());
+        parentQuery.addGroup(timeField);
+
+        String metricName=subQuery.getMetricField().getFieldName();
+
+        if(subQuery.getLabelFields()!=null){
+            for(FieldPart labelField:subQuery.getLabelFields()){
+                String labelFieldName=String.format("%s.%s",aliasName,labelField.getFieldName());
+                parentQuery.addLabelField(labelFieldName,labelField.getFieldName());
+                parentQuery.addGroup(labelFieldName);
+            }
+        }
+        parentQuery.setMetricField(String.format("last(%s.%s,%s) %s",aliasName,metricName,timeField,metricName),metricName);
+        return parentQuery;
     }
 
     private SQLQuery visitFuncClamp(ParameterContext parameterContext,String lowValue,String highValue){
@@ -401,8 +432,6 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
         }
         return subQuery;
     }
-
-    
 
     @Override
     public SQLQuery visitAggregation(AggregationContext ctx) {
