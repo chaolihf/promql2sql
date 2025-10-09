@@ -25,6 +25,7 @@ import com.chinatelecom.oneops.worker.query.generate.PromQLParser.LabelNameListC
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.MatrixSelectorContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.OffsetContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.ParameterContext;
+import com.chinatelecom.oneops.worker.query.generate.PromQLParser.ParameterListContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4atContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4subqueryContext;
@@ -428,7 +429,14 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
             case "max":
             case "avg":
             case "count":
+            case "stddev":
                 return visitAggregationSingleParam(aggrOperator,ctx.parameterList().parameter(0),isWithBy,labelNames);
+            case "stdvar":
+                return visitAggregationSingleParam("stddev_pop",ctx.parameterList().parameter(0),isWithBy,labelNames);
+            case "group":
+                return visitAggregationGroup(ctx.parameterList().parameter(0),isWithBy,labelNames);
+            case "count_values":
+                return visitAggregationCountValues(ctx.parameterList(),isWithBy,labelNames);
             default:
                 break;
         }
@@ -443,17 +451,98 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
         SQLQuery parentQuery=new SQLQuery();
         String aliasName=getAliasName();
         parentQuery.setTableNameWithQuery(subQuery,aliasName);
-        
         String timeField=String.format("%s.%s" ,aliasName, subQuery.getTimeField().getFieldName());
         parentQuery.setTimeField(timeField, subQuery.getTimeField().getFieldName());
         String metricName=subQuery.getMetricField().getFieldName();
         parentQuery.setMetricField(String.format("%s(%s.%s) %s", aggrOperator,aliasName, metricName,metricName),metricName);
         parentQuery.addGroup(timeField);
         if(labelNames!=null){
-            for(String labelName:labelNames){
-                String labelField=String.format("%s.%s",aliasName,labelName);
-                parentQuery.addLabelField(labelField,labelName);
-                parentQuery.addGroup(labelField);
+            if (isWithBy){
+                for(String labelName:labelNames){
+                    String labelField=String.format("%s.%s",aliasName,labelName);
+                    parentQuery.addLabelField(labelField,labelName);
+                    parentQuery.addGroup(labelField);
+                }
+            } else{
+                for(FieldPart labelField:subQuery.getLabelFields()){
+                    String labelName=labelField.getFieldName();
+                    if (!labelNames.contains(labelName)){
+                        String labelString= String.format("%s.%s",aliasName,labelName);
+                        parentQuery.addLabelField(labelString,labelName);
+                        parentQuery.addGroup(labelString);
+                    }
+                }
+            }
+        }
+        return parentQuery;
+    }
+
+    private SQLQuery visitAggregationGroup(ParameterContext parameter, boolean isWithBy, List<String> labelNames) {
+        SQLQuery subQuery=null;
+        if(parameter.vectorOperation()!=null){
+            subQuery=visit(parameter.vectorOperation());
+        }
+        SQLQuery parentQuery=new SQLQuery();
+        String aliasName=getAliasName();
+        parentQuery.setTableNameWithQuery(subQuery,aliasName);
+        String timeField=String.format("%s.%s" ,aliasName, subQuery.getTimeField().getFieldName());
+        parentQuery.setTimeField(timeField, subQuery.getTimeField().getFieldName());
+        String metricName=subQuery.getMetricField().getFieldName();
+        parentQuery.setMetricField(String.format("1 %s", metricName),metricName);
+        parentQuery.addGroup(timeField);
+        if(labelNames!=null){
+            if (isWithBy){
+                for(String labelName:labelNames){
+                    String labelField=String.format("%s.%s",aliasName,labelName);
+                    parentQuery.addLabelField(labelField,labelName);
+                    parentQuery.addGroup(labelField);
+                }
+            } else{
+                for(FieldPart labelField:subQuery.getLabelFields()){
+                    String labelName=labelField.getFieldName();
+                    if (!labelNames.contains(labelName)){
+                        String labelString= String.format("%s.%s",aliasName,labelName);
+                        parentQuery.addLabelField(labelString,labelName);
+                        parentQuery.addGroup(labelString);
+                    }
+                }
+            }
+        }
+        return parentQuery;
+    }
+//select metric_value aa ,count(1) metric_value from () group by metric_value
+    private SQLQuery visitAggregationCountValues(ParameterListContext parameters, boolean isWithBy, List<String> labelNames) {
+        SQLQuery subQuery=null;
+        String metriValueLabel=parameters.parameter(0).literal().getText().replaceAll("[\"']", "");
+        if(parameters.parameter(1).vectorOperation()!=null){
+            subQuery=visit(parameters.parameter(1).vectorOperation());
+        }
+        SQLQuery parentQuery=new SQLQuery();
+        String aliasName=getAliasName();
+        parentQuery.setTableNameWithQuery(subQuery,aliasName);
+        String timeField=String.format("%s.%s" ,aliasName, subQuery.getTimeField().getFieldName());
+        parentQuery.setTimeField(timeField, subQuery.getTimeField().getFieldName());
+        String metricName=subQuery.getMetricField().getFieldName();
+        parentQuery.setMetricField("count(1) " + metricName,metricName);
+        parentQuery.addLabelField(String.format("%s.%s %s",aliasName,metricName,metriValueLabel),metriValueLabel);
+        parentQuery.addGroup(timeField);
+        parentQuery.addGroup(String.format("%s.%s" ,aliasName,metricName));
+        if(labelNames!=null){
+            if (isWithBy){
+                for(String labelName:labelNames){
+                    String labelField=String.format("%s.%s",aliasName,labelName);
+                    parentQuery.addLabelField(labelField,labelName);
+                    parentQuery.addGroup(labelField);
+                }
+            } else{
+                for(FieldPart labelField:subQuery.getLabelFields()){
+                    String labelName=labelField.getFieldName();
+                    if (!labelNames.contains(labelName)){
+                        String labelString= String.format("%s.%s",aliasName,labelName);
+                        parentQuery.addLabelField(labelString,labelName);
+                        parentQuery.addGroup(labelString);
+                    }
+                }
             }
         }
         return parentQuery;
