@@ -37,7 +37,9 @@ import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperatio
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4atContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4compareContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4multContext;
+import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4powContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4subqueryContext;
+import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4unaryContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4vectorContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperationContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParserBaseVisitor;
@@ -586,6 +588,23 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
     }
 
     
+
+    @Override
+    public SQLQuery visitVectorOperation4unary(VectorOperation4unaryContext ctx) {
+        SQLQuery subQuery=visit(ctx.vectorOperation());
+        if(ctx.unaryOp().ADD()!=null){
+            return subQuery;
+        }
+        FieldPart metricField = subQuery.getMetricField();
+        String[] metricParts=splitExpressionAndAlias(metricField.getExpression());
+        subQuery.setMetricField(String.format("-(%s) %s",metricParts[0],metricParts[1]), metricField.getFieldName()); 
+        return subQuery;
+    }
+
+    @Override
+    public SQLQuery visitVectorOperation4pow(VectorOperation4powContext ctx) {
+        return visitVectorOperation4TwoOperator(ctx.vectorOperation(0),ctx.vectorOperation(1),ctx.powOp().getText());
+    }
 
     @Override
     public SQLQuery visitVectorOperation4compare(VectorOperation4compareContext ctx) {
