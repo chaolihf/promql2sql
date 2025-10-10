@@ -22,12 +22,15 @@ import com.chinatelecom.oneops.worker.query.generate.PromQLParser.InstantSelecto
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.LabelMatcherContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.LabelNameContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.LabelNameListContext;
+import com.chinatelecom.oneops.worker.query.generate.PromQLParser.LiteralContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.MatrixSelectorContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.OffsetContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.ParameterContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.ParameterListContext;
+import com.chinatelecom.oneops.worker.query.generate.PromQLParser.ParensContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4atContext;
+import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4multContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4subqueryContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4vectorContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParserBaseVisitor;
@@ -575,6 +578,52 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
             }
         }
         return parentQuery;
+    }
+
+    @Override
+    public SQLQuery visitVectorOperation4mult(VectorOperation4multContext ctx) {
+        SQLQuery leftQuery=visit(ctx.vectorOperation(0));
+        SQLQuery rightQuery=visit(ctx.vectorOperation(1));
+        SQLQuery parentQuery=new SQLQuery();
+        if(leftQuery.getTableAlias()==null){
+            if(rightQuery.getTableAlias()==null){
+                parentQuery.setMetricField(String.format("(%s)*(%s)",
+                    leftQuery.getMetricField().getExpression(), rightQuery.getMetricField().getExpression()),null);
+            }else{
+                FieldPart rightMetricField = rightQuery.getMetricField();
+                String[] rightMetricParts=splitExpressionAndAlias(rightMetricField.getExpression());
+                rightQuery.setMetricField(String.format("(%s)*(%s) %s",leftQuery.getMetricField().getExpression(),rightMetricParts[0],rightMetricParts[1]), rightMetricField.getFieldName()); 
+                return rightQuery;
+            }
+        } else {
+            if(rightQuery.getTableAlias()==null){
+                FieldPart leftMetricField = leftQuery.getMetricField();
+                String[] leftMetricParts=splitExpressionAndAlias(leftMetricField.getExpression());
+                leftQuery.setMetricField(String.format("(%s)*(%s) %s",leftMetricParts[0],rightQuery.getMetricField().getExpression(),leftMetricParts[1]), leftMetricField.getFieldName()); 
+                return leftQuery;
+            } else{
+                parentQuery.setMetricField(String.format("(%s)*(%s)",
+                leftQuery.getMetricField().getExpression(), rightQuery.getMetricField().getExpression()),null);
+            }
+        }
+        return parentQuery;
+    }
+
+    private String[] splitExpressionAndAlias(String expression) {
+        int index=expression.lastIndexOf(" ");
+        return new String[]{expression.substring(0,index),expression.substring(index+1)};
+    }
+
+    @Override
+    public SQLQuery visitLiteral(LiteralContext ctx) {
+        SQLQuery query=new SQLQuery();
+        query.setMetricField(ctx.getText(), "");
+        return query;
+    }
+
+    @Override
+    public SQLQuery visitParens(ParensContext ctx) {
+        return visit(ctx.vectorOperation());
     }
 
     public String convertPromQL(String promQL,String startTime,String endTime) {

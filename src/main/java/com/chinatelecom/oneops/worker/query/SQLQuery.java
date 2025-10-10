@@ -93,6 +93,9 @@ public class SQLQuery {
     }
 
     public String getTableAlias(){
+        if(tablePart==null){
+            return null;
+        }
         return tablePart.getAliasName();
     }
 

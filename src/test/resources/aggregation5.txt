@@ -1,1 +1,1 @@
-sum(rate(node_cpu_seconds_total{object_id="6cce615e-8afa-4bde-a648-b4163a0ee957"}[5m])) by (mode) 
+sum(rate(node_cpu_seconds_total{object_id="6cce615e-8afa-4bde-a648-b4163a0ee957"}[5m])) by (mode) * 100
