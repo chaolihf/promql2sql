@@ -6,6 +6,8 @@ import java.util.List;
 import com.chinatelecom.oneops.worker.query.entity.ConditionPart;
 import com.chinatelecom.oneops.worker.query.entity.FieldPart;
 import com.chinatelecom.oneops.worker.query.entity.GroupPart;
+import com.chinatelecom.oneops.worker.query.entity.JoinPart;
+import com.chinatelecom.oneops.worker.query.entity.JoinPart.JOIN_METHOD;
 import com.chinatelecom.oneops.worker.query.entity.LimitPart;
 import com.chinatelecom.oneops.worker.query.entity.OrderPart;
 import com.chinatelecom.oneops.worker.query.entity.SubQueryTablePart;
@@ -21,6 +23,7 @@ public class SQLQuery {
     private List<OrderPart> ordersPart=null;
     private List<GroupPart> groupsPart=null;
     private LimitPart limitPart=null;
+    private List<JoinPart> joinsPart=null;
     
     public String getSql() {
         StringBuffer sql=new StringBuffer("select ");
@@ -43,6 +46,11 @@ public class SQLQuery {
         sql.append(tablePart.getSql());
         sql.append(" ");
         sql.append(tablePart.getAliasName());
+        if(joinsPart!=null){
+            for (JoinPart joinPart : joinsPart) {
+                sql.append(joinPart.getJoinSQL());
+            }
+        }
         if(conditionsPart!=null){
             sql.append(" where ");
             for(ConditionPart conditionPart:conditionsPart){
@@ -187,6 +195,13 @@ public class SQLQuery {
             return groupsPart.get(index);
         }
         return null;
+    }
+
+    public void addJoinQuery(SQLQuery rightQuery, JOIN_METHOD innerJoin,String joinCondition,String aliasName) {
+        if (joinsPart==null){
+            joinsPart=new ArrayList<JoinPart>();
+        }
+        joinsPart.add(new JoinPart(rightQuery ,innerJoin.ordinal(),joinCondition,aliasName));
     }
 
 

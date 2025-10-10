@@ -1,9 +1,12 @@
 package com.chinatelecom.oneops.worker.query;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
@@ -12,6 +15,7 @@ import org.antlr.v4.runtime.tree.ParseTree;
 
 import com.chinatelecom.oneops.worker.query.entity.ConditionPart;
 import com.chinatelecom.oneops.worker.query.entity.FieldPart;
+import com.chinatelecom.oneops.worker.query.entity.JoinPart.JOIN_METHOD;
 import com.chinatelecom.oneops.worker.query.generate.PromQLLexer;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.AggregationContext;
@@ -29,10 +33,13 @@ import com.chinatelecom.oneops.worker.query.generate.PromQLParser.ParameterConte
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.ParameterListContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.ParensContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorContext;
+import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4addContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4atContext;
+import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4compareContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4multContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4subqueryContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperation4vectorContext;
+import com.chinatelecom.oneops.worker.query.generate.PromQLParser.VectorOperationContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParserBaseVisitor;
 
 /**
@@ -419,8 +426,6 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
         return parentQuery;
     }
 
-    
-
     @Override
     public SQLQuery visitVectorOperation4at(VectorOperation4atContext ctx) {
         SQLQuery subQuery=visit(ctx.vectorOperation(0));
@@ -542,7 +547,7 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
         }
         return parentQuery;
     }
-//select metric_value aa ,count(1) metric_value from () group by metric_value
+
     private SQLQuery visitAggregationCountValues(ParameterListContext parameters, boolean isWithBy, List<String> labelNames) {
         SQLQuery subQuery=null;
         String metriValueLabel=parameters.parameter(0).literal().getText().replaceAll("[\"']", "");
@@ -580,30 +585,92 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
         return parentQuery;
     }
 
+    
+
+    @Override
+    public SQLQuery visitVectorOperation4compare(VectorOperation4compareContext ctx) {
+        return visitVectorOperation4TwoOperator(ctx.vectorOperation(0),ctx.vectorOperation(1),ctx.compareOp().getText());
+    }
+
+    @Override
+    public SQLQuery visitVectorOperation4add(VectorOperation4addContext ctx) {
+        return visitVectorOperation4TwoOperator(ctx.vectorOperation(0),ctx.vectorOperation(1),ctx.addOp().getText());
+    }
+
     @Override
     public SQLQuery visitVectorOperation4mult(VectorOperation4multContext ctx) {
-        SQLQuery leftQuery=visit(ctx.vectorOperation(0));
-        SQLQuery rightQuery=visit(ctx.vectorOperation(1));
+        return visitVectorOperation4TwoOperator(ctx.vectorOperation(0),ctx.vectorOperation(1),ctx.multOp().getText());
+    }
+
+    public SQLQuery visitVectorOperation4TwoOperator(VectorOperationContext leftContext,VectorOperationContext rightContext,String operator) {
+        SQLQuery leftQuery=visit(leftContext);
+        SQLQuery rightQuery=visit(rightContext);
         SQLQuery parentQuery=new SQLQuery();
         if(leftQuery.getTableAlias()==null){
             if(rightQuery.getTableAlias()==null){
-                parentQuery.setMetricField(String.format("(%s)*(%s)",
-                    leftQuery.getMetricField().getExpression(), rightQuery.getMetricField().getExpression()),null);
+                parentQuery.setMetricField(String.format("(%s)%s(%s)",
+                    leftQuery.getMetricField().getExpression(), operator,rightQuery.getMetricField().getExpression()),null);
             }else{
                 FieldPart rightMetricField = rightQuery.getMetricField();
                 String[] rightMetricParts=splitExpressionAndAlias(rightMetricField.getExpression());
-                rightQuery.setMetricField(String.format("(%s)*(%s) %s",leftQuery.getMetricField().getExpression(),rightMetricParts[0],rightMetricParts[1]), rightMetricField.getFieldName()); 
+                rightQuery.setMetricField(String.format("(%s)%s(%s) %s",leftQuery.getMetricField().getExpression(),
+                    operator,rightMetricParts[0],rightMetricParts[1]), rightMetricField.getFieldName()); 
                 return rightQuery;
             }
         } else {
             if(rightQuery.getTableAlias()==null){
                 FieldPart leftMetricField = leftQuery.getMetricField();
                 String[] leftMetricParts=splitExpressionAndAlias(leftMetricField.getExpression());
-                leftQuery.setMetricField(String.format("(%s)*(%s) %s",leftMetricParts[0],rightQuery.getMetricField().getExpression(),leftMetricParts[1]), leftMetricField.getFieldName()); 
+                leftQuery.setMetricField(String.format("(%s)%s(%s) %s",leftMetricParts[0],operator,
+                    rightQuery.getMetricField().getExpression(),leftMetricParts[1]), leftMetricField.getFieldName()); 
                 return leftQuery;
             } else{
-                parentQuery.setMetricField(String.format("(%s)*(%s)",
-                leftQuery.getMetricField().getExpression(), rightQuery.getMetricField().getExpression()),null);
+                if((leftQuery.getTimeField()!=null) != (rightQuery.getTimeField()!=null)){
+                    throw new TranslateRuntimeException("表达式两边时间字段不匹配，存在空值:"+leftContext.parent.getText());
+                }
+                if ( (leftQuery.getLabelFields()==null) != (rightQuery.getLabelFields()==null)){
+                    throw new TranslateRuntimeException("表达式两边标签字段不匹配，存在空值:"+leftContext.parent.getText());
+                }
+                if(leftQuery.getLabelFields()!=null){
+                    Set<String> leftLabels=new HashSet<>();
+                    Set<String> rightLabels=new HashSet<>();
+                    for(FieldPart labelField:leftQuery.getLabelFields()){
+                        leftLabels.add(labelField.getFieldName());
+                    }    
+                    for(FieldPart labelField:rightQuery.getLabelFields()){
+                        rightLabels.add(labelField.getFieldName());
+                    }
+                    if(!leftLabels.equals(rightLabels)){
+                        throw new TranslateRuntimeException("表达式两边标签字段不匹配，字段值不一致:"+leftContext.parent.getText());    
+                    }
+                }
+                String leftAliasName=getAliasName();
+                parentQuery.setTableNameWithQuery(leftQuery,leftAliasName);
+                String rightAliasName=getAliasName();
+                StringBuffer joinCondition=new StringBuffer();
+                if(leftQuery.getTimeField()!=null){
+                    String fieldName=leftQuery.getTimeField().getFieldName();
+                    parentQuery.setTimeField(String.format("%s.%s",leftAliasName,fieldName), fieldName);
+                    joinCondition.append(leftAliasName).append(".").append(fieldName).append("=")
+                        .append(rightAliasName).append(".").append(fieldName).append(" and ");
+                }
+                if(leftQuery.getLabelFields()!=null){
+                    for(FieldPart labelField:leftQuery.getLabelFields()){
+                        String fieldName=labelField.getFieldName();
+                        parentQuery.addLabelField(String.format("%s.%s",leftAliasName,fieldName),fieldName);
+                        joinCondition.append(leftAliasName).append(".").append(fieldName).append("=")
+                        .append(rightAliasName).append(".").append(fieldName).append(" and ");
+                    }  
+                }
+                String metricName=leftQuery.getMetricField().getFieldName();
+                parentQuery.setMetricField(String.format("(%s.%s)%s(%s.%s) %s",leftAliasName,metricName, operator,
+                rightAliasName, rightQuery.getMetricField().getFieldName(),metricName),metricName);
+                if(joinCondition.length()>0){
+                    joinCondition.insert(0, " on (");
+                    joinCondition.delete(joinCondition.length()-5, joinCondition.length());
+                    joinCondition.append(") ");
+                }
+                parentQuery.addJoinQuery(rightQuery, JOIN_METHOD.INNER_JOIN,joinCondition.toString(),rightAliasName);                
             }
         }
         return parentQuery;
