@@ -607,7 +607,47 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
 
     @Override
     public SQLQuery visitVectorOperation4compare(VectorOperation4compareContext ctx) {
-        return visitVectorOperation4TwoOperator(ctx.vectorOperation(0),ctx.vectorOperation(1),ctx.compareOp().getText());
+        String operator=ctx.compareOp().getText();
+        SQLQuery leftQuery=visit(ctx.vectorOperation(0));
+        SQLQuery rightQuery=visit(ctx.vectorOperation(1));
+        SQLQuery parentQuery=new SQLQuery();
+        SQLQuery subQuery;
+        String numString;
+        if(leftQuery.getTableAlias()==null){
+            if(rightQuery.getTableAlias()==null){
+                parentQuery.setMetricField(String.format("(%s)%s(%s)",
+                    leftQuery.getMetricField().getExpression(), operator,rightQuery.getMetricField().getExpression()),null);
+                return parentQuery;
+            }else{
+                subQuery=rightQuery;
+                numString=leftQuery.getMetricField().getExpression();
+            }
+        } else {
+            if(rightQuery.getTableAlias()==null){
+                subQuery=leftQuery;
+                numString=rightQuery.getMetricField().getExpression();
+            } else{
+                throw new TranslateRuntimeException("表达式需要有一个数字表达式:"+ctx.getText());            
+            }
+        }
+        String aliasName=getAliasName();
+        parentQuery.setTableNameWithQuery(subQuery,aliasName);
+        String timeField=String.format("%s.%s" ,aliasName, subQuery.getTimeField().getFieldName());
+        parentQuery.setTimeField(timeField, subQuery.getTimeField().getFieldName());
+        String metricName=subQuery.getMetricField().getFieldName();
+        parentQuery.setMetricField(String.format("%s.%s", aliasName, metricName),metricName);
+        if(subQuery.getLabelFields()!=null){
+            for(FieldPart labelField:subQuery.getLabelFields()){
+                String labelName=labelField.getFieldName();
+                String labelString= String.format("%s.%s",aliasName,labelName);
+                parentQuery.addLabelField(labelString,labelName);
+            }
+        }
+        parentQuery.addCondition(leftQuery.getTableAlias()!=null?
+            String.format("%s.%s %s (%s)",aliasName,metricName,operator,numString) : 
+            String.format("(%s) %s %s.%s",numString,operator,aliasName,metricName)
+        );
+        return parentQuery;
     }
 
     @Override

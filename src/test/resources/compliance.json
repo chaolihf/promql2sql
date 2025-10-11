@@ -1,5 +1,13 @@
 [
    {
+      "promql": "node_cpu_seconds_total > 10",
+      "sql": "select a1.receivetime,a1.cpu,a1.mode,a1.node_cpu_seconds_total from (select a0.receivetime,a0.cpu,a0.mode,last(a0.node_cpu_seconds_total,a0.receivetime) node_cpu_seconds_total from linux_cpu_mode_info a0 where a0.receivetime=(select receivetime from linux_cpu_mode_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) group by a0.receivetime,a0.cpu,a0.mode order by a0.receivetime asc,a0.cpu asc,a0.mode asc) a1 where a1.node_cpu_seconds_total > (10)"
+   },
+   {
+      "promql": "42",
+      "sql": "select 42"
+   },
+   {
       "promql": "42",
       "sql": "select 42"
    },
