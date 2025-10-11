@@ -43,13 +43,19 @@ options {
     caseInsensitive = true;
 }
 
+fragment NAN_NUMERAL: 'nan';
+
+fragment INF_NUMERAL: [-+]? 'inf';
+
+fragment X_NUMERAL: '0x' [0-9a-f]+;
+
 fragment SIMPLE_NUMERAL: '.' [0-9]+;
 
 fragment NUMERAL: [0-9]+ ('.' [0-9]+)?;
 
 fragment SCIENTIFIC_NUMBER: NUMERAL ('e' [-+]? NUMERAL)?;
 
-NUMBER: NUMERAL | SCIENTIFIC_NUMBER | SIMPLE_NUMERAL;
+NUMBER: NUMERAL | SCIENTIFIC_NUMBER | SIMPLE_NUMERAL | X_NUMERAL | INF_NUMERAL | NAN_NUMERAL;
 
 STRING: '\'' (~('\'' | '\\') | '\\' .)* '\'' | '"' (~('"' | '\\') | '\\' .)* '"';
 

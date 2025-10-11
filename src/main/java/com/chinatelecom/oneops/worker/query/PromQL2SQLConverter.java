@@ -706,6 +706,12 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
             literal=ctx.NUMBER().getText();
             if(literal.startsWith(".")){
                 literal="0"+literal;
+            } else if (literal.toLowerCase().startsWith("0x")){
+                literal=String.valueOf(Integer.parseInt(literal.substring(2),16));
+            } else if (literal.toLowerCase().indexOf("inf")!=-1){
+                literal=String.format("'%s'::numeric",literal);
+            } else if (literal.equalsIgnoreCase("nan")){
+                literal="null::numeric";
             }
         } else{
             literal=ctx.STRING().getText();

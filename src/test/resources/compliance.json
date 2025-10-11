@@ -1,5 +1,4 @@
 [
-   
    {
       "promql": "42",
       "sql": "select 42"
@@ -11,6 +10,34 @@
    {
       "promql": ".123",
       "sql": "select 0.123"
+   },
+   {
+      "promql": "1.23e-3",
+      "sql": "select 1.23e-3"
+   },
+   {
+      "promql": "0x3d",
+      "sql": "select 61"
+   },
+   {
+      "promql": "inf",
+      "sql": "select 'inf'::numeric"
+   },
+   {
+      "promql": "+inf",
+      "sql": "select '+inf'::numeric"
+   },
+   {
+      "promql": "-inf",
+      "sql": "select '-inf'::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "0x3d",
+      "sql": "select 61"
    },
    {
       "promql": "",
