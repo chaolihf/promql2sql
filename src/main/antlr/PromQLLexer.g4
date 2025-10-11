@@ -43,11 +43,13 @@ options {
     caseInsensitive = true;
 }
 
+fragment SIMPLE_NUMERAL: '.' [0-9]+;
+
 fragment NUMERAL: [0-9]+ ('.' [0-9]+)?;
 
 fragment SCIENTIFIC_NUMBER: NUMERAL ('e' [-+]? NUMERAL)?;
 
-NUMBER: NUMERAL | SCIENTIFIC_NUMBER;
+NUMBER: NUMERAL | SCIENTIFIC_NUMBER | SIMPLE_NUMERAL;
 
 STRING: '\'' (~('\'' | '\\') | '\\' .)* '\'' | '"' (~('"' | '\\') | '\\' .)* '"';
 

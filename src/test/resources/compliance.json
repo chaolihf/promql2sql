@@ -1,10 +1,19 @@
 [
+   
    {
-    "promql":"42",
-    "sql":"select 42"
+      "promql": "42",
+      "sql": "select 42"
    },
    {
-    "promql":"",
-    "sql":""
+      "promql": "1.234",
+      "sql": "select 1.234"
+   },
+   {
+      "promql": ".123",
+      "sql": "select 0.123"
+   },
+   {
+      "promql": "",
+      "sql": ""
    }
 ]

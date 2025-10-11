@@ -701,8 +701,17 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
 
     @Override
     public SQLQuery visitLiteral(LiteralContext ctx) {
+        String literal;
+        if(ctx.NUMBER()!=null){
+            literal=ctx.NUMBER().getText();
+            if(literal.startsWith(".")){
+                literal="0"+literal;
+            }
+        } else{
+            literal=ctx.STRING().getText();
+        }
         SQLQuery query=new SQLQuery();
-        query.setMetricField(ctx.getText(), "");
+        query.setMetricField(literal, "");
         return query;
     }
 
