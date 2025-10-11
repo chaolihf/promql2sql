@@ -37,3 +37,6 @@ antlr4.exe -visitor -no-listener *.g4 -o ../java/com/chinatelecom/oneops/worker/
 # 其他限制
 ## __name__只支持精确匹配，不支持模糊匹配
 ## 区间查询默认只取区间里面最后一条记录（TODO：可以使用unnest和array_agg进行合并字段值和拆解）
+
+# 兼容测试
+https://promlabs.com/promql-compliance-tests/

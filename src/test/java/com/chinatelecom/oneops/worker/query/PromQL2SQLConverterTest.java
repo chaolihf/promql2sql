@@ -10,6 +10,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.junit.Test;
 
 public class PromQL2SQLConverterTest { 
@@ -32,6 +34,31 @@ public class PromQL2SQLConverterTest {
         }
     };
     
+    
+    @Test
+    public void testConvertCompliance() throws IOException{
+        IMetricFinder finder=new IMetricFinder(){
+            public String findTableName(String metricName) {
+                return metricMap.get(metricName);
+            }
+            public List<String> getMetricLabels(String tableName){
+                return metricLabelMap.get(tableName);
+            } 
+        };
+        String sourceText=loadTestContent("compliance.json");
+        JSONArray testDatas=new JSONArray(sourceText);
+        for (int i=0;i<testDatas.length();i++) {
+            JSONObject testData=testDatas.getJSONObject(i);
+            PromQL2SQLConverter converter = new PromQL2SQLConverter(finder);
+            String promql=testData.getString("promql");
+            if(promql.length()>0){
+                String result=converter.convertPromQL(promql,"now()","now()");
+                assertTrue(String.format("转化PromQL语句%s,\n结果是到%s\n期望是%s",
+                    promql,result,testData.getString("sql")),result.equals(testData.getString("sql")));  
+            } 
+        }
+    }
+
 
     @Test
     public void testConvert() throws IOException{
@@ -85,7 +112,7 @@ public class PromQL2SQLConverterTest {
         };
         for (int i=0;i<testSources.length;i++) {
             PromQL2SQLConverter converter = new PromQL2SQLConverter(finder);
-            String sourceText=loadTestContent(testSources[i]);
+            String sourceText=loadTestContent(testSources[i] + ".txt");
             String result=converter.convertPromQL(sourceText,"now()","now()");
             assertTrue(String.format("转化文件%s中PromQL语句%s,\n结果是到%s\n期望是%s",testSources[i],sourceText,result,testResults[i]),
                 result.equals(testResults[i]));   
@@ -94,7 +121,7 @@ public class PromQL2SQLConverterTest {
 
     private String loadTestContent(String filePath) throws IOException{
         ClassLoader classLoader = PromQL2SQLConverterTest.class.getClassLoader();
-        InputStream inputStream = classLoader.getResourceAsStream(filePath + ".txt");
+        InputStream inputStream = classLoader.getResourceAsStream(filePath);
         if (inputStream == null) {
             throw new IOException("找不到资源文件: " + filePath);
         }

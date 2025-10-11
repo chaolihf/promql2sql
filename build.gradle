@@ -64,11 +64,13 @@ jar {
 
 dependencies {
     api(
-			//'com.chinatelecom.udp.core:lang-library:1.0.7',
-            "org.antlr:antlr4:4.13.2",
-            "org.antlr:antlr4-runtime:4.13.2"
+        "org.antlr:antlr4:4.13.2",
+        "org.antlr:antlr4-runtime:4.13.2"
     )
-    testImplementation group: 'junit', name: 'junit', version: '4.12'
+    testImplementation(
+        "junit:junit:4.12",
+        "org.json:json:20250517"
+    )
 }
 
 

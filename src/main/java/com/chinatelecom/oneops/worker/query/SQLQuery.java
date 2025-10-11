@@ -42,10 +42,12 @@ public class SQLQuery {
             sql.append(",");
         }
         sql.deleteCharAt(sql.length()-1);
-        sql.append(" from ");
-        sql.append(tablePart.getSql());
-        sql.append(" ");
-        sql.append(tablePart.getAliasName());
+        if(tablePart!=null){
+            sql.append(" from ");
+            sql.append(tablePart.getSql());
+            sql.append(" ");
+            sql.append(tablePart.getAliasName());
+        }
         if(joinsPart!=null){
             for (JoinPart joinPart : joinsPart) {
                 sql.append(joinPart.getJoinSQL());
