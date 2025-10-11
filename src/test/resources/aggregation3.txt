@@ -1,1 +1,0 @@
-last_over_time(node_cpu_seconds_total[1m])

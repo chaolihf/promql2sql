@@ -1,1 +1,0 @@
-count_values by (mode) ('total_count', node_cpu_seconds_total)
