@@ -21,7 +21,9 @@ public class PromQL2SQLConverterTest {
             put("container_cpu_usage_seconds_total", "container_pod_cpu_info");
             put("node_network_up","linux_device_info");
             put("node_cpu_seconds_total","linux_cpu_mode_info");
+            put("node_cpu_all_total","linux_cpu_info");
             put("node_load1","linux_info");
+            put("node_os_info","linux_os_version_info");
         }
     };
 
@@ -30,7 +32,9 @@ public class PromQL2SQLConverterTest {
             put("container_pod_cpu_info", Arrays.asList("namespace","pod"));
             put("linux_device_info", Arrays.asList("device"));
             put("linux_cpu_mode_info",Arrays.asList("cpu","mode"));
+            put("linux_cpu_info",Arrays.asList("cpu"));
             put("linux_info",Arrays.asList());
+            put("linux_os_version_info",Arrays.asList("name","pretty_name","object_id"));
         }
     };
     

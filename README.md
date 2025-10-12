@@ -34,6 +34,9 @@ pip install antlr4-tools
 cd D:\tools\java\workspace\promql2sql\promql2sql\src\main\antlr
 antlr4.exe -visitor -no-listener *.g4 -o ../java/com/chinatelecom/oneops/worker/query/generate -package com.chinatelecom.oneops.worker.query.generate
 
+# 语法增强
+promql每次查询的是一个指标，相当于一列数据，可以扩展支持相同标签多个指标值，相当于多列数据。
+
 # 其他限制
 ## __name__只支持精确匹配，不支持模糊匹配
 ## 区间查询默认只取区间里面最后一条记录（TODO：可以使用unnest和array_agg进行合并字段值和拆解）
