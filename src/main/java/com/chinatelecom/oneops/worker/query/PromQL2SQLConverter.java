@@ -140,7 +140,7 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
                 subQuery.addLabelField(String.format("%s.%s",aliasName,label),label);
             }
         }
-        subQuery.setMetricField(String.format("last(%s.%s,%s) %s",aliasName,metricName,timeExpression,metricName),metricName);
+        subQuery.setMetricField(String.format("%s.%s %s",aliasName,metricName,metricName),metricName);
         StringBuffer conditionString=new StringBuffer();
         if(labelMatchers!=null){
             conditionString.append(" and ");
@@ -153,10 +153,6 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
         subQuery.insertCondition(0,String.format("%s=(select %s from %s where %s>%s - interval '%d min' and %s<%s%s order by %s desc limit 1)",
             timeExpression,FIELD_TIME,metricTableName,FIELD_TIME, PLACEHOLDER_START_TIME,DELAY_TIME, FIELD_TIME,
                 PLACEHOLDER_END_TIME,conditionString.toString(),FIELD_TIME));
-        subQuery.addGroup(timeExpression);
-        for(String label:labels){
-            subQuery.addGroup(String.format("%s.%s",aliasName,label));
-        }  
         subQuery.addOrder(timeExpression, true);
         for(String label:labels){
             subQuery.addOrder(String.format("%s.%s",aliasName,label),true);
@@ -177,20 +173,30 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
 
     @Override
     public SQLQuery visitVectorOperation4subquery(VectorOperation4subqueryContext ctx) {
-        SQLQuery instanceToken=visit(ctx.vectorOperation());
+        SQLQuery subQuery=visit(ctx.vectorOperation());
         //替换默认时间查询条件
         String[] subRange=ctx.subqueryOp().SUBQUERY_RANGE().getText().split(":");
-        instanceToken.getCondition(0).setCondition(String.format("%s.%s between %s - interval '%s' and %s",
-            instanceToken.getTableAlias(),FIELD_TIME,PLACEHOLDER_START_TIME,
+        subQuery.getCondition(0).setCondition(String.format("%s.%s between %s - interval '%s' and %s",
+        subQuery.getTableAlias(),FIELD_TIME,PLACEHOLDER_START_TIME,
             getDurationExpression(subRange[0]),PLACEHOLDER_END_TIME));
         if(subRange[1].length()>1){
+            SQLQuery parentQuery=new SQLQuery();
+            String aliasName=getAliasName();
+            parentQuery.setTableNameWithQuery(subQuery,aliasName);
             String bucketDuration=String.format("time_bucket('%s',%s.%s)",
-                getDurationExpression(subRange[1]),instanceToken.getTableAlias(),FIELD_TIME);
-            instanceToken.setTimeField(String.format("%s %s",bucketDuration,FIELD_TIME),FIELD_TIME);
-            instanceToken.getGroup(0).setGroup(bucketDuration);
-            instanceToken.getOrder(0).setExpression(bucketDuration,true);
+                getDurationExpression(subRange[1]),aliasName,subQuery.getTimeField().getFieldName());
+            parentQuery.setTimeField(String.format("%s %s",bucketDuration,FIELD_TIME),FIELD_TIME);
+            String metricName=subQuery.getMetricField().getFieldName();
+            if(subQuery.getLabelFields()!=null){
+                for(FieldPart labelField:subQuery.getLabelFields()){
+                    String labelFieldName=String.format("%s.%s",aliasName,labelField.getFieldName());
+                    parentQuery.addLabelField(labelFieldName,labelField.getFieldName());
+                }
+            }
+            parentQuery.setMetricField(String.format("%s.%s %s",aliasName,metricName,metricName),metricName);
+            return parentQuery;
         }
-        return instanceToken;
+        return subQuery;
     }
 
     private String getDurationExpression(String time) {
