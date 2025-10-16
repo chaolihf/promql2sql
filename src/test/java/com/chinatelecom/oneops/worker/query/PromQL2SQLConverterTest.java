@@ -24,12 +24,14 @@ public class PromQL2SQLConverterTest {
             put("node_softnet_processed_total","linux_cpu_info");
             put("node_load1","linux_info");
             put("node_os_info","linux_os_version_info");
+            put("container_memory_usage_bytes","container_pod_info");
         }
     };
 
     private Map<String,List<String>> metricLabelMap=new HashMap<>(){
         {
             put("container_pod_cpu_info", Arrays.asList("namespace","pod"));
+            put("container_pod_info", Arrays.asList("namespace","pod"));
             put("linux_device_info", Arrays.asList("device"));
             put("linux_cpu_mode_info",Arrays.asList("cpu","mode"));
             put("linux_cpu_info",Arrays.asList("cpu","object_id"));
@@ -57,6 +59,9 @@ public class PromQL2SQLConverterTest {
             String promql=testData.getString("promql");
             if(promql.length()>0){
                 String result=converter.convertPromQL(promql,"now()","now()");
+                if(result==null){
+                    result="";
+                }
                 assertTrue(String.format("转化PromQL语句%s,\n结果是到%s\n期望是%s",
                     promql,result,testData.getString("sql")),result.equals(testData.getString("sql")));  
             } 

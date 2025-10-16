@@ -1,29 +1,5 @@
 [
    {
-      "promql": "container_cpu_usage_seconds_total",
-      "sql": "select a0.receivetime,a0.namespace,a0.pod,a0.container_cpu_usage_seconds_total container_cpu_usage_seconds_total from container_pod_cpu_info a0 where a0.receivetime=(select receivetime from container_pod_cpu_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc"
-   },
-   {
-      "promql": "container_cpu_usage_seconds_total{}",
-      "sql": "select a0.receivetime,a0.namespace,a0.pod,a0.container_cpu_usage_seconds_total container_cpu_usage_seconds_total from container_pod_cpu_info a0 where a0.receivetime=(select receivetime from container_pod_cpu_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc"
-   },
-   {
-      "promql": "container_cpu_usage_seconds_total{namespace='kube-system'}",
-      "sql": "select a0.receivetime,a0.namespace,a0.pod,a0.container_cpu_usage_seconds_total container_cpu_usage_seconds_total from container_pod_cpu_info a0 where a0.receivetime=(select receivetime from container_pod_cpu_info where receivetime>now() - interval '2 min' and receivetime<now() and namespace='kube-system' order by receivetime desc limit 1) and a0.namespace='kube-system' order by a0.receivetime asc,a0.namespace asc,a0.pod asc"
-   },
-   {
-      "promql": "{__name__='container_cpu_usage_seconds_total'}",
-      "sql": "select a0.receivetime,a0.namespace,a0.pod,a0.container_cpu_usage_seconds_total container_cpu_usage_seconds_total from container_pod_cpu_info a0 where a0.receivetime=(select receivetime from container_pod_cpu_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc"
-   },
-   {
-      "promql": "node_os_info * on (object_id) group_right(name) node_softnet_processed_total",
-      "sql": "select a3.receivetime,a3.cpu,a3.object_id,a2.name,(a2.node_os_info)*(a3.node_softnet_processed_total) node_softnet_processed_total from (select a1.receivetime,a1.cpu,a1.object_id,a1.node_softnet_processed_total node_softnet_processed_total from linux_cpu_info a1 where a1.receivetime=(select receivetime from linux_cpu_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a1.receivetime asc,a1.cpu asc,a1.object_id asc) a3 INNER JOIN (select a0.receivetime,a0.name,a0.pretty_name,a0.object_id,a0.node_os_info node_os_info from linux_os_version_info a0 where a0.receivetime=(select receivetime from linux_os_version_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.name asc,a0.pretty_name asc,a0.object_id asc) a2 on (a2.object_id=a3.object_id and a2.receivetime=a3.receivetime) "
-   },
-   {
-      "promql": "node_cpu_seconds_total > 10",
-      "sql": "select a1.receivetime,a1.cpu,a1.mode,a1.node_cpu_seconds_total from (select a0.receivetime,a0.cpu,a0.mode,a0.node_cpu_seconds_total node_cpu_seconds_total from linux_cpu_mode_info a0 where a0.receivetime=(select receivetime from linux_cpu_mode_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.cpu asc,a0.mode asc) a1 where a1.node_cpu_seconds_total > (10)"
-   },
-   {
       "promql": "42",
       "sql": "select 42"
    },
@@ -58,6 +34,282 @@
    {
       "promql": "NaN",
       "sql": "select null::numeric"
+   },
+   {
+      "promql": "container_memory_usage_bytes",
+      "sql": "select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc"
+   },
+   {
+      "promql": "{__name__=\"container_memory_usage_bytes\"}",
+      "sql": "select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc"
+   },
+   {
+      "promql": "container_memory_usage_bytes{namespace=\"kube-system\"}",
+      "sql": "select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() and namespace='kube-system' order by receivetime desc limit 1) and a0.namespace='kube-system' order by a0.receivetime asc,a0.namespace asc,a0.pod asc"
+   },
+   {
+      "promql": "container_memory_usage_bytes{namespace!=\"kube-system\"}",
+      "sql": "select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() and namespace!='kube-system' order by receivetime desc limit 1) and a0.namespace!='kube-system' order by a0.receivetime asc,a0.namespace asc,a0.pod asc"
+   },
+   {
+      "promql": "container_memory_usage_bytes{namespace=~\"kube.*\"}",
+      "sql": "select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() and namespace~'kube.*' order by receivetime desc limit 1) and a0.namespace~'kube.*' order by a0.receivetime asc,a0.namespace asc,a0.pod asc"
+   },
+   {
+      "promql": "container_memory_usage_bytes{namespace!~\"kube.*\"}",
+      "sql": "select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() and namespace!~'kube.*' order by receivetime desc limit 1) and a0.namespace!~'kube.*' order by a0.receivetime asc,a0.namespace asc,a0.pod asc"
+   },
+   {
+      "promql": "container_memory_usage_bytes{pod=~\"python.*\",namespace!=\"kube-system\"}",
+      "sql": "select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() and pod~'python.*' and namespace!='kube-system' order by receivetime desc limit 1) and a0.pod~'python.*' and a0.namespace!='kube-system' order by a0.receivetime asc,a0.namespace asc,a0.pod asc"
+   },
+   {
+      "promql": "nonexistent_metric_name",
+      "sql": ""
+   },
+   {
+      "promql": "container_memory_usage_bytes offset 1m",
+      "sql": "select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '1 min' - interval '2 min' and receivetime<now() - interval '1 min' order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc"
+   },
+   {
+      "promql": "container_memory_usage_bytes offset 5m",
+      "sql": "select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '5 min' - interval '2 min' and receivetime<now() - interval '5 min' order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc"
+   },
+   {
+      "promql": "container_memory_usage_bytes offset 10m",
+      "sql": "select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '10 min' - interval '2 min' and receivetime<now() - interval '10 min' order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc"
+   },
+   {
+      "promql": "container_memory_usage_bytes offset 10m15s",
+      "sql": "select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '10 min 15 second' - interval '2 min' and receivetime<now() - interval '10 min 15 second' order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc"
+   },
+   {
+      "promql": "container_memory_usage_bytes offset -1m",
+      "sql": "select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '-1 min' - interval '2 min' and receivetime<now() - interval '-1 min' order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc"
+   },
+   {
+      "promql": "container_memory_usage_bytes offset -5m",
+      "sql": "select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '-5 min' - interval '2 min' and receivetime<now() - interval '-5 min' order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc"
+   },
+   {
+      "promql": "container_memory_usage_bytes offset -10m",
+      "sql": "select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '-10 min' - interval '2 min' and receivetime<now() - interval '-10 min' order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc"
+   },
+   {
+      "promql": "container_memory_usage_bytes offset -10m15s",
+      "sql": "select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '-10 min 15 second' - interval '2 min' and receivetime<now() - interval '-10 min 15 second' order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc"
+   },
+   {
+      "promql": "sum(container_memory_usage_bytes)",
+      "sql": "select a1.receivetime,sum(a1.container_memory_usage_bytes) container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1 group by a1.receivetime"
+   },
+   {
+      "promql": "avg(container_memory_usage_bytes)",
+      "sql": "select a1.receivetime,avg(a1.container_memory_usage_bytes) container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1 group by a1.receivetime"
+   },
+   {
+      "promql": "max(container_memory_usage_bytes)",
+      "sql": "select a1.receivetime,max(a1.container_memory_usage_bytes) container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1 group by a1.receivetime"
+   },
+   {
+      "promql": "min(container_memory_usage_bytes)",
+      "sql": "select a1.receivetime,min(a1.container_memory_usage_bytes) container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1 group by a1.receivetime"
+   },
+   {
+      "promql": "count(container_memory_usage_bytes)",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "container_cpu_usage_seconds_total",
+      "sql": "select a0.receivetime,a0.namespace,a0.pod,a0.container_cpu_usage_seconds_total container_cpu_usage_seconds_total from container_pod_cpu_info a0 where a0.receivetime=(select receivetime from container_pod_cpu_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc"
+   },
+   {
+      "promql": "container_cpu_usage_seconds_total{}",
+      "sql": "select a0.receivetime,a0.namespace,a0.pod,a0.container_cpu_usage_seconds_total container_cpu_usage_seconds_total from container_pod_cpu_info a0 where a0.receivetime=(select receivetime from container_pod_cpu_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc"
+   },
+   {
+      "promql": "container_cpu_usage_seconds_total{namespace='kube-system'}",
+      "sql": "select a0.receivetime,a0.namespace,a0.pod,a0.container_cpu_usage_seconds_total container_cpu_usage_seconds_total from container_pod_cpu_info a0 where a0.receivetime=(select receivetime from container_pod_cpu_info where receivetime>now() - interval '2 min' and receivetime<now() and namespace='kube-system' order by receivetime desc limit 1) and a0.namespace='kube-system' order by a0.receivetime asc,a0.namespace asc,a0.pod asc"
+   },
+   {
+      "promql": "{__name__='container_cpu_usage_seconds_total'}",
+      "sql": "select a0.receivetime,a0.namespace,a0.pod,a0.container_cpu_usage_seconds_total container_cpu_usage_seconds_total from container_pod_cpu_info a0 where a0.receivetime=(select receivetime from container_pod_cpu_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc"
+   },
+   {
+      "promql": "node_os_info * on (object_id) group_right(name) node_softnet_processed_total",
+      "sql": "select a3.receivetime,a3.cpu,a3.object_id,a2.name,(a2.node_os_info)*(a3.node_softnet_processed_total) node_softnet_processed_total from (select a1.receivetime,a1.cpu,a1.object_id,a1.node_softnet_processed_total node_softnet_processed_total from linux_cpu_info a1 where a1.receivetime=(select receivetime from linux_cpu_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a1.receivetime asc,a1.cpu asc,a1.object_id asc) a3 INNER JOIN (select a0.receivetime,a0.name,a0.pretty_name,a0.object_id,a0.node_os_info node_os_info from linux_os_version_info a0 where a0.receivetime=(select receivetime from linux_os_version_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.name asc,a0.pretty_name asc,a0.object_id asc) a2 on (a2.object_id=a3.object_id and a2.receivetime=a3.receivetime) "
+   },
+   {
+      "promql": "node_cpu_seconds_total > 10",
+      "sql": "select a1.receivetime,a1.cpu,a1.mode,a1.node_cpu_seconds_total from (select a0.receivetime,a0.cpu,a0.mode,a0.node_cpu_seconds_total node_cpu_seconds_total from linux_cpu_mode_info a0 where a0.receivetime=(select receivetime from linux_cpu_mode_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.cpu asc,a0.mode asc) a1 where a1.node_cpu_seconds_total > (10)"
    },
    {
       "promql": "sum(rate(node_cpu_seconds_total{object_id=\"6cce615e-8afa-4bde-a648-b4163a0ee957\"}[5m])) by (mode) * 100",

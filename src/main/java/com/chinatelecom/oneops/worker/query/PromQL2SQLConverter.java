@@ -106,7 +106,7 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
         for(LabelMatcherContext labelMatcher : ctx.labelMatcherList().labelMatcher()){
             String labelName=labelMatcher.labelName().getText();
             if ("__name__".equals(labelName)){
-                metricName=labelMatcher.STRING().getText().replace("\'","");
+                metricName=labelMatcher.STRING().getText().replaceAll("[\"']", "");
             } else {
                 if(labelMatchers==null){
                     labelMatchers=new ArrayList<>();
@@ -130,6 +130,9 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
     private SQLQuery generateInstantToken(String metricName,List<String[]> labelMatchers){
         SQLQuery subQuery = new SQLQuery();
         String metricTableName=metricFinder.findTableName(metricName);
+        if(metricTableName==null) {
+            return null;
+        }
         List<String> labels=metricFinder.getMetricLabels(metricTableName);
         String aliasName=getAliasName();
         subQuery.setTableNameWithAlias(metricTableName, aliasName);
@@ -145,8 +148,9 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
         if(labelMatchers!=null){
             conditionString.append(" and ");
             for(String[] labelMatcher : labelMatchers){
-                subQuery.addCondition(String.format("%s.%s%s%s",aliasName,labelMatcher[0],labelMatcher[1],labelMatcher[2]));
-                conditionString.append(String.format("%s%s%s",labelMatcher[0],labelMatcher[1],labelMatcher[2])).append(" and ");
+                String sqlOperator=convertOperatorToDB(labelMatcher[1]);
+                subQuery.addCondition(String.format("%s.%s%s%s",aliasName,labelMatcher[0],sqlOperator,labelMatcher[2]));
+                conditionString.append(String.format("%s%s%s",labelMatcher[0],sqlOperator,labelMatcher[2])).append(" and ");
             }
             conditionString.delete(conditionString.length()-5,conditionString.length());
         } 
@@ -154,10 +158,24 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
             timeExpression,FIELD_TIME,metricTableName,FIELD_TIME, PLACEHOLDER_START_TIME,DELAY_TIME, FIELD_TIME,
                 PLACEHOLDER_END_TIME,conditionString.toString(),FIELD_TIME));
         subQuery.addOrder(timeExpression, true);
-        for(String label:labels){
-            subQuery.addOrder(String.format("%s.%s",aliasName,label),true);
+        if(labels!=null){
+            for(String label:labels){
+                subQuery.addOrder(String.format("%s.%s",aliasName,label),true);
+            }
         }
         return subQuery;
+    }
+
+    private String convertOperatorToDB(String operator) {
+        final Map<String,String> operatorMap=new HashMap<>(){{
+            put("=~","~");
+            
+        }};
+        String mapedOperator=operatorMap.get(operator);
+        if(mapedOperator!=null){
+            return mapedOperator;
+        }
+        return operator;
     }
 
     @Override
@@ -208,7 +226,7 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
                 i++;
                 continue;
             }
-            if (Character.isDigit(c)) {
+            if (Character.isDigit(c) || c=='-') {
                 duration.append(c);
             } else {
                 duration.append(" ");
@@ -269,7 +287,7 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
     @Override
     public SQLQuery visitFunction_(Function_Context ctx) {
         String functionName=ctx.FUNCTION().getText();
-        Map<String,String> mathMap=new HashMap<>(){{
+        final Map<String,String> mathMap=new HashMap<>(){{
             put("abs","abs");put("ceil","ceil");put("exp","exp");put("floor","floor");put("ln","ln");put("log2","log2");
             put("log10","log10");put("round","round"); put("sgn","sign");put("sqrt","sqrt");put("acos","");
             put("acosh","acosh");put("asin","asin");put("asinh","asinh");put("atan","atan");put("atanh","atan");put("cos","cos");
@@ -856,6 +874,9 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
         PromQLParser parser=new PromQLParser(tokens);
         ParseTree tree=parser.expression();
         SQLQuery result= this.visit(tree);
+        if(result==null) {
+            return null;
+        } 
         String withoutDurationSql=result.getSql();
         return withoutDurationSql.replace(PLACEHOLDER_START_TIME,startTime).replace(PLACEHOLDER_END_TIME, endTime);
     }
