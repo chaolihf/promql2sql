@@ -515,6 +515,9 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
         if(parameter.vectorOperation()!=null){
             subQuery=visit(parameter.vectorOperation());
         }
+        if(subQuery==null){
+            return null;
+        }
         SQLQuery parentQuery=new SQLQuery();
         String aliasName=getAliasName();
         parentQuery.setTableNameWithQuery(subQuery,aliasName);
@@ -523,16 +526,23 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
         String metricName=subQuery.getMetricField().getFieldName();
         parentQuery.setMetricField(String.format("%s(%s.%s) %s", aggrOperator,aliasName, metricName,metricName),metricName);
         parentQuery.addGroup(timeField);
+        List<String> subQueryLabels=new ArrayList<>();
+        if(subQuery.getLabelFields()!=null){
+            for(FieldPart labelField:subQuery.getLabelFields()){
+                subQueryLabels.add(labelField.getFieldName());
+            }
+        }
         if(labelNames!=null){
             if (isWithBy){
                 for(String labelName:labelNames){
-                    String labelField=String.format("%s.%s",aliasName,labelName);
-                    parentQuery.addLabelField(labelField,labelName);
-                    parentQuery.addGroup(labelField);
+                    if(subQueryLabels.contains(labelName)){
+                        String labelField=String.format("%s.%s",aliasName,labelName);
+                        parentQuery.addLabelField(labelField,labelName);
+                        parentQuery.addGroup(labelField);
+                    }
                 }
             } else{
-                for(FieldPart labelField:subQuery.getLabelFields()){
-                    String labelName=labelField.getFieldName();
+                for(String labelName:subQueryLabels){
                     if (!labelNames.contains(labelName)){
                         String labelString= String.format("%s.%s",aliasName,labelName);
                         parentQuery.addLabelField(labelString,labelName);
@@ -548,6 +558,9 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
         SQLQuery subQuery=null;
         if(parameter.vectorOperation()!=null){
             subQuery=visit(parameter.vectorOperation());
+        }
+        if(subQuery==null){
+            return null;
         }
         SQLQuery parentQuery=new SQLQuery();
         String aliasName=getAliasName();
