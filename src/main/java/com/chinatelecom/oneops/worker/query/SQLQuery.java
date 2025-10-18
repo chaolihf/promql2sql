@@ -18,6 +18,7 @@ public class SQLQuery {
     private TablePart tablePart=null;
     private FieldPart timePart=null;
     private List<FieldPart> labelsPart=null;
+    private List<FieldPart> helpsPart=null;
     private FieldPart metricPart=null;
     private List<ConditionPart> conditionsPart=null;
     private List<OrderPart> ordersPart=null;
@@ -33,6 +34,12 @@ public class SQLQuery {
         }
         if(labelsPart!=null){
             for(FieldPart fieldPart:labelsPart){
+                sql.append(fieldPart.getExpression());
+                sql.append(",");
+            }
+        }
+        if(helpsPart!=null){
+            for(FieldPart fieldPart:helpsPart){
                 sql.append(fieldPart.getExpression());
                 sql.append(",");
             }
@@ -119,6 +126,18 @@ public class SQLQuery {
     
     public List<FieldPart> getLabelFields() {
         return labelsPart;
+    }
+
+    public void addHelpField(String expression,String fieldName) {
+        if (helpsPart==null) {
+            helpsPart=new ArrayList<FieldPart>();
+        }
+        helpsPart.add(new FieldPart(expression,fieldName));
+    }
+
+    
+    public List<FieldPart> getHelpFields() {
+        return helpsPart;
     }
 
     public void setMetricField(String expression,String fieldName) {

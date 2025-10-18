@@ -504,6 +504,10 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
                 return visitAggregationGroup(ctx.parameterList().parameter(0),isWithBy,labelNames);
             case "count_values":
                 return visitAggregationCountValues(ctx.parameterList(),isWithBy,labelNames);
+            case "topk":
+               return visitAggregationTopK(false,ctx.parameterList().parameter(0).getText(),ctx.parameterList().parameter(1),isWithBy,labelNames);
+            case "bottomk":
+                return visitAggregationTopK(true,ctx.parameterList().parameter(0).getText(),ctx.parameterList().parameter(1),isWithBy,labelNames);
             default:
                 break;
         }
@@ -552,6 +556,70 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
             }
         }
         return parentQuery;
+    }
+
+    private SQLQuery visitAggregationTopK(boolean isAsc,String top,ParameterContext parameter, boolean isWithBy, List<String> labelNames){
+        SQLQuery subQuery=null;
+        if(parameter.vectorOperation()!=null){
+            subQuery=visit(parameter.vectorOperation());
+        }
+        if(subQuery==null){
+            return null;
+        }
+        SQLQuery parentQuery=new SQLQuery();
+        String aliasName=getAliasName();
+        parentQuery.setTableNameWithQuery(subQuery,aliasName);
+        String timeField=String.format("%s.%s" ,aliasName, subQuery.getTimeField().getFieldName());
+        parentQuery.setTimeField(timeField, subQuery.getTimeField().getFieldName());
+        String metricName=subQuery.getMetricField().getFieldName();
+        parentQuery.setMetricField(String.format("%s.%s %s", aliasName, metricName,metricName),metricName);
+        List<String> subQueryLabels=new ArrayList<>();
+        if(subQuery.getLabelFields()!=null){
+            for(FieldPart labelField:subQuery.getLabelFields()){
+                String labelName=labelField.getFieldName();
+                subQueryLabels.add(labelName);
+                parentQuery.addLabelField(String.format("%s.%s",aliasName,labelName),labelName);
+            }
+        }
+        String orderMetricName=String.format("%s.%s", aliasName,metricName);
+        if(isWithBy && (labelNames==null || labelNames.size()==0)){
+            parentQuery.addOrder(orderMetricName, isAsc);
+            parentQuery.setLimit(Integer.parseInt(top));
+            return parentQuery;
+        } else{
+            String helpFieldName= metricName + "_order";
+            StringBuffer windowSql=new StringBuffer("row_number() over (partition by ");
+            windowSql.append(timeField).append(",");
+            if(labelNames!=null){
+                if (isWithBy){
+                    for(String labelName:labelNames){
+                        if(subQueryLabels.contains(labelName)){
+                            windowSql.append(String.format("%s.%s",aliasName,labelName)).append(",");
+                        }
+                    }
+                } else{
+                    for(String labelName:subQueryLabels){
+                        if (!labelNames.contains(labelName)){
+                            windowSql.append(String.format("%s.%s",aliasName,labelName)).append(",");
+                        }
+                    }
+                }
+            }
+            windowSql.deleteCharAt(windowSql.length()-1).append(" order by ").append(orderMetricName)
+                .append(isAsc?" asc":" desc").append(") ").append(helpFieldName);
+            parentQuery.addHelpField(windowSql.toString(),helpFieldName);
+            SQLQuery topQuery=new SQLQuery();
+            String topAliasName=getAliasName();
+            topQuery.setTableNameWithQuery(parentQuery,topAliasName);
+            String topTimeField=String.format("%s.%s" ,topAliasName, parentQuery.getTimeField().getFieldName());
+            topQuery.setTimeField(topTimeField, parentQuery.getTimeField().getFieldName());
+            topQuery.setMetricField(String.format("%s.%s %s", topAliasName, metricName,metricName),metricName);
+            for(String labelName:subQueryLabels){
+                topQuery.addLabelField(String.format("%s.%s",topAliasName,labelName),labelName);
+            }
+            topQuery.addCondition(String.format("%s.%s<=%s",topAliasName,helpFieldName,top));
+            return topQuery;
+        }
     }
 
     private SQLQuery visitAggregationGroup(ParameterContext parameter, boolean isWithBy, List<String> labelNames) {

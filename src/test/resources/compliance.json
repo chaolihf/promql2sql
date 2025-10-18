@@ -129,7 +129,7 @@
    },
    {
       "promql": "group(container_memory_usage_bytes)",
-      "sql": ""
+      "sql": "select a1.receivetime,1 container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1 group by a1.receivetime"
    },
    {
       "promql": "sum(nonexistent_metric_name)",
@@ -193,7 +193,7 @@
    },
    {
       "promql": "group by() (container_memory_usage_bytes)",
-      "sql": ""
+      "sql": "select a1.receivetime,1 container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1 group by a1.receivetime"
    },
    {
       "promql": "sum by(namespace) (container_memory_usage_bytes)",
@@ -253,11 +253,11 @@
    },
    {
       "promql": "group by(namespace) (container_memory_usage_bytes)",
-      "sql": ""
+      "sql": "select a1.receivetime,a1.namespace,1 container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1 group by a1.receivetime,a1.namespace"
    },
    {
       "promql": "group by(namespace,pod) (container_memory_usage_bytes)",
-      "sql": ""
+      "sql": "select a1.receivetime,a1.namespace,a1.pod,1 container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1 group by a1.receivetime,a1.namespace,a1.pod"
    },
    {
       "promql": "sum by(nonexistent) (container_memory_usage_bytes)",
@@ -289,7 +289,7 @@
    },
    {
       "promql": "group by(nonexistent) (container_memory_usage_bytes)",
-      "sql": ""
+      "sql": "select a1.receivetime,a1.nonexistent,1 container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1 group by a1.receivetime,a1.nonexistent"
    },
    {
       "promql": "sum without() (container_memory_usage_bytes)",
@@ -405,51 +405,51 @@
    },
    {
       "promql": "group without() (container_memory_usage_bytes)",
-      "sql": ""
+      "sql": "select a1.receivetime,a1.namespace,a1.pod,1 container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1 group by a1.receivetime,a1.namespace,a1.pod"
    },
    {
       "promql": "group without(namespace) (container_memory_usage_bytes)",
-      "sql": ""
+      "sql": "select a1.receivetime,a1.pod,1 container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1 group by a1.receivetime,a1.pod"
    },
    {
       "promql": "group without(namespace,pod) (container_memory_usage_bytes)",
-      "sql": ""
+      "sql": "select a1.receivetime,1 container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1 group by a1.receivetime"
    },
    {
       "promql": "group without(nonexistent) (container_memory_usage_bytes)",
-      "sql": ""
+      "sql": "select a1.receivetime,a1.namespace,a1.pod,1 container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1 group by a1.receivetime,a1.namespace,a1.pod"
    },
    {
-      "promql": "NaN",
-      "sql": "select null::numeric"
+      "promql": "topk (3, container_memory_usage_bytes)",
+      "sql": "select a1.receivetime,a1.namespace,a1.pod,a1.container_memory_usage_bytes container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1 order by a1.container_memory_usage_bytes desc limit 3"
    },
    {
-      "promql": "NaN",
-      "sql": "select null::numeric"
+      "promql": "bottomk (3, container_memory_usage_bytes)",
+      "sql": "select a1.receivetime,a1.namespace,a1.pod,a1.container_memory_usage_bytes container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1 order by a1.container_memory_usage_bytes asc limit 3"
    },
    {
-      "promql": "NaN",
-      "sql": "select null::numeric"
+      "promql": "topk by(namespace) (2, container_memory_usage_bytes)",
+      "sql": "select a2.receivetime,a2.namespace,a2.pod,a2.container_memory_usage_bytes container_memory_usage_bytes from (select a1.receivetime,a1.namespace,a1.pod,row_number() over (partition by a1.receivetime,a1.namespace order by a1.container_memory_usage_bytes desc) container_memory_usage_bytes_order,a1.container_memory_usage_bytes container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1) a2 where a2.container_memory_usage_bytes_order<=2"
    },
    {
-      "promql": "NaN",
-      "sql": "select null::numeric"
+      "promql": "bottomk by(namespace) (2, container_memory_usage_bytes)",
+      "sql": "select a2.receivetime,a2.namespace,a2.pod,a2.container_memory_usage_bytes container_memory_usage_bytes from (select a1.receivetime,a1.namespace,a1.pod,row_number() over (partition by a1.receivetime,a1.namespace order by a1.container_memory_usage_bytes asc) container_memory_usage_bytes_order,a1.container_memory_usage_bytes container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1) a2 where a2.container_memory_usage_bytes_order<=2"
    },
    {
-      "promql": "NaN",
-      "sql": "select null::numeric"
+      "promql": "topk without(namespace) (2, container_memory_usage_bytes)",
+      "sql": "select a2.receivetime,a2.namespace,a2.pod,a2.container_memory_usage_bytes container_memory_usage_bytes from (select a1.receivetime,a1.namespace,a1.pod,row_number() over (partition by a1.receivetime,a1.pod order by a1.container_memory_usage_bytes desc) container_memory_usage_bytes_order,a1.container_memory_usage_bytes container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1) a2 where a2.container_memory_usage_bytes_order<=2"
    },
    {
-      "promql": "NaN",
-      "sql": "select null::numeric"
+      "promql": "bottomk without(namespace) (2, container_memory_usage_bytes)",
+      "sql": "select a2.receivetime,a2.namespace,a2.pod,a2.container_memory_usage_bytes container_memory_usage_bytes from (select a1.receivetime,a1.namespace,a1.pod,row_number() over (partition by a1.receivetime,a1.pod order by a1.container_memory_usage_bytes asc) container_memory_usage_bytes_order,a1.container_memory_usage_bytes container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1) a2 where a2.container_memory_usage_bytes_order<=2"
    },
    {
-      "promql": "NaN",
-      "sql": "select null::numeric"
+      "promql": "topk without() (2, container_memory_usage_bytes)",
+      "sql": "select a2.receivetime,a2.namespace,a2.pod,a2.container_memory_usage_bytes container_memory_usage_bytes from (select a1.receivetime,a1.namespace,a1.pod,row_number() over (partition by a1.receivetime,a1.namespace,a1.pod order by a1.container_memory_usage_bytes desc) container_memory_usage_bytes_order,a1.container_memory_usage_bytes container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1) a2 where a2.container_memory_usage_bytes_order<=2"
    },
    {
-      "promql": "NaN",
-      "sql": "select null::numeric"
+      "promql": "bottomk without() (2, container_memory_usage_bytes)",
+      "sql": "select a2.receivetime,a2.namespace,a2.pod,a2.container_memory_usage_bytes container_memory_usage_bytes from (select a1.receivetime,a1.namespace,a1.pod,row_number() over (partition by a1.receivetime,a1.namespace,a1.pod order by a1.container_memory_usage_bytes asc) container_memory_usage_bytes_order,a1.container_memory_usage_bytes container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1) a2 where a2.container_memory_usage_bytes_order<=2"
    },
    {
       "promql": "NaN",
