@@ -26,6 +26,14 @@ public class SQLQuery {
     private LimitPart limitPart=null;
     private List<JoinPart> joinsPart=null;
     
+    public SQLQuery(){
+
+    }
+
+    public SQLQuery(String literal){
+        metricPart=new FieldPart(literal,"");
+    }
+
     public String getSql() {
         StringBuffer sql=new StringBuffer("select ");
         if(timePart!=null){

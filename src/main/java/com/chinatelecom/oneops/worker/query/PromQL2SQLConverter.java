@@ -196,11 +196,19 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
     @Override
     public SQLQuery visitVectorOperation4subquery(VectorOperation4subqueryContext ctx) {
         SQLQuery subQuery=visit(ctx.vectorOperation());
+        System.out.println(subQuery.getSql());
         //替换默认时间查询条件
         String[] subRange=ctx.subqueryOp().SUBQUERY_RANGE().getText().split(":");
-        subQuery.getCondition(0).setCondition(String.format("%s.%s between %s - interval '%s' and %s",
-        subQuery.getTableAlias(),FIELD_TIME,PLACEHOLDER_START_TIME,
-            getDurationExpression(subRange[0]),PLACEHOLDER_END_TIME));
+        ConditionPart condition = subQuery.getCondition(0);
+        if(condition!=null){
+            condition.setCondition(String.format("%s.%s between %s - interval '%s' and %s",
+            subQuery.getTableAlias(),FIELD_TIME,PLACEHOLDER_START_TIME,
+                getDurationExpression(subRange[0]),PLACEHOLDER_END_TIME));
+        } else{
+            subQuery.addCondition(String.format("%s.%s between %s - interval '%s' and %s",
+            subQuery.getTableAlias(),FIELD_TIME,PLACEHOLDER_START_TIME,
+                getDurationExpression(subRange[0]),PLACEHOLDER_END_TIME));
+        }
         if(subRange[1].length()>1){
             SQLQuery parentQuery=new SQLQuery();
             String aliasName=getAliasName();
@@ -305,7 +313,22 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
                 return visitFuncTimestamp(ctx.parameter(0));
             }
             case "day_of_month":{
-                return visitFuncDayOfMonth(ctx.parameter(0));
+                return visitFuncDayOfTime("day",ctx.parameter(0));
+            }
+            case "day_of_week":{
+                return visitFuncDayOfTime("dow",ctx.parameter(0));
+            }
+            case "day_of_year":{
+                return visitFuncDayOfTime("doy",ctx.parameter(0));
+            }
+            case "time":{
+                return visitFuncDayOfTime("epoch", ctx.parameter(0));
+            }
+            case "hour":
+            case "year":
+            case "minute":
+            case "month":{
+                return visitFuncDayOfTime(functionName,ctx.parameter(0));
             }
             case "rate":{
                 return visitFuncRate(ctx.parameter(0));
@@ -318,6 +341,12 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
             }
             case "clamp":{
                 return visitFuncClamp(ctx.parameter(0), ctx.parameter(1).getText(),ctx.parameter(2).getText());
+            }
+            case "clamp_min":{
+                return visitFuncClamp(ctx.parameter(0), ctx.parameter(1).getText(),null);
+            }
+            case "clamp_max":{
+                return visitFuncClamp(ctx.parameter(0),null, ctx.parameter(1).getText());
             }
             case "sum_over_time":
             case "max_over_time":
@@ -434,7 +463,15 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
         String timeField=String.format("%s.%s" ,aliasName, subQuery.getTimeField().getFieldName());
         parentQuery.setTimeField(timeField, subQuery.getTimeField().getFieldName());
         String metricName=subQuery.getMetricField().getFieldName();
-        parentQuery.setMetricField(String.format("clamp(%s.%s,%s,%s) %s", aliasName, metricName,lowValue,highValue, metricName),metricName);
+        String expression;
+        if(lowValue==null){
+            expression=String.format("greatest(%s.%s,%s) %s", aliasName, metricName,highValue, metricName);
+        } else if (highValue==null){
+            expression=String.format("least(%s.%s,%s) %s", aliasName, metricName,lowValue, metricName);
+        } else{
+            expression=String.format("clamp(%s.%s,%s,%s) %s", aliasName, metricName,lowValue,highValue, metricName);
+        }
+        parentQuery.setMetricField(expression,metricName);
         return parentQuery;
     }
 
@@ -459,8 +496,11 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
         return parentQuery;
     }
 
-    private SQLQuery visitFuncDayOfMonth(ParameterContext parameterContext){
+    private SQLQuery visitFuncDayOfTime(String part,ParameterContext parameterContext){
         SQLQuery subQuery=null;
+        if(parameterContext==null){
+            return new SQLQuery(String.format("extract(%s from now())",part));
+        }
         if(parameterContext.vectorOperation()!=null){
             subQuery=visit(parameterContext.vectorOperation());
         }
@@ -473,7 +513,7 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
             }
         }
         String metricName=subQuery.getMetricField().getFieldName();
-        parentQuery.setMetricField(String.format("extract (day from %s.%s) %s", aliasName, metricName,metricName),metricName);
+        parentQuery.setMetricField(String.format("extract (%s from %s.%s) %s", part,aliasName, metricName,metricName),metricName);
         return parentQuery;
     }
 

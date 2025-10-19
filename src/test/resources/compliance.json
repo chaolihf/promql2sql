@@ -1432,6 +1432,86 @@
       "sql": "select a2.receivetime,a2.namespace,a2.pod,case when a2.container_memory_usage_bytes_min_value>a2.container_memory_usage_bytes_first_value then a2.container_memory_usage_bytes_last_value-a2.container_memory_usage_bytes_min_value else a2.container_memory_usage_bytes_last_value-a2.container_memory_usage_bytes_first_value end as container_memory_usage_bytes from (select a1.receivetime,a1.namespace,a1.pod,last_value(a1.container_memory_usage_bytes) over (partition by a1.namespace,a1.pod order by a1.receivetime) container_memory_usage_bytes_last_value,first_value(a1.container_memory_usage_bytes) over (partition by a1.namespace,a1.pod order by a1.receivetime) container_memory_usage_bytes_first_value,min(a1.container_memory_usage_bytes) over (partition by a1.namespace,a1.pod order by a1.receivetime) container_memory_usage_bytes_min_value from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime between now() - interval '1 hour 5 min 15 second' and now() order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1) a2"
    },
    {
+      "promql": "deriv(container_memory_usage_bytes[1s])",
+      "sql": ""
+   },
+   {
+      "promql": "predict_linear(container_memory_usage_bytes[1s], 600)",
+      "sql": ""
+   },
+   {
+      "promql": "time()",
+      "sql": "select extract(epoch from now())"
+   },
+   {
+      "promql": "hour()",
+      "sql": "select extract(hour from now())"
+   },
+   {
+      "promql": "year()",
+      "sql": "select extract(year from now())"
+   },
+   {
+      "promql": "month()",
+      "sql": "select extract(month from now())"
+   },
+   {
+      "promql": "minute()",
+      "sql": "select extract(minute from now())"
+   },
+   {
+      "promql": "day_of_month(timestamp(container_memory_usage_bytes offset 1m))",
+      "sql": "select a2.namespace,a2.pod,extract (day from a2.container_memory_usage_bytes) container_memory_usage_bytes from (select a1.receivetime,a1.namespace,a1.pod,a1.receivetime container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '1 min' - interval '2 min' and receivetime<now() - interval '1 min' order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1) a2"
+   },
+   {
+      "promql": "hour(timestamp(container_memory_usage_bytes offset 1m))",
+      "sql": "select a2.namespace,a2.pod,extract (hour from a2.container_memory_usage_bytes) container_memory_usage_bytes from (select a1.receivetime,a1.namespace,a1.pod,a1.receivetime container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '1 min' - interval '2 min' and receivetime<now() - interval '1 min' order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1) a2"
+   },
+   {
+      "promql": "year(timestamp(container_memory_usage_bytes offset 1m))",
+      "sql": "select a2.namespace,a2.pod,extract (year from a2.container_memory_usage_bytes) container_memory_usage_bytes from (select a1.receivetime,a1.namespace,a1.pod,a1.receivetime container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '1 min' - interval '2 min' and receivetime<now() - interval '1 min' order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1) a2"
+   },
+   {
+      "promql": "month(timestamp(container_memory_usage_bytes offset 1m))",
+      "sql": "select a2.namespace,a2.pod,extract (month from a2.container_memory_usage_bytes) container_memory_usage_bytes from (select a1.receivetime,a1.namespace,a1.pod,a1.receivetime container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '1 min' - interval '2 min' and receivetime<now() - interval '1 min' order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1) a2"
+   },
+   {
+      "promql": "minute(timestamp(container_memory_usage_bytes offset 1m))",
+      "sql": "select a2.namespace,a2.pod,extract (minute from a2.container_memory_usage_bytes) container_memory_usage_bytes from (select a1.receivetime,a1.namespace,a1.pod,a1.receivetime container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '1 min' - interval '2 min' and receivetime<now() - interval '1 min' order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1) a2"
+   },
+   {
+      "promql": "clamp(container_memory_usage_bytes, 0, 1)",
+      "sql": "select a1.receivetime,a1.namespace,a1.pod,clamp(a1.container_memory_usage_bytes,0,1) container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1"
+   },
+   {
+      "promql": "clamp_min(container_memory_usage_bytes, 2)",
+      "sql": "select a1.receivetime,a1.namespace,a1.pod,least(a1.container_memory_usage_bytes,2) container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1"
+   },
+   {
+      "promql": "clamp_max(container_memory_usage_bytes, 2)",
+      "sql": "select a1.receivetime,a1.namespace,a1.pod,greatest(a1.container_memory_usage_bytes,2) container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1"
+   },
+   {
+      "promql": "count_values(\"value\", container_memory_usage_bytes)",
+      "sql": "select a1.receivetime,a1.container_memory_usage_bytes value,count(1) container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1 group by a1.receivetime,a1.container_memory_usage_bytes"
+   },
+   {
+      "promql": "max_over_time((time() - max(container_memory_usage_bytes) < 1000)[5m:10s] offset 5m)",
+      "sql": "select a4.receivetime,max(a4.container_memory_usage_bytes) container_memory_usage_bytes from (select time_bucket('10 second',a3.receivetime) receivetime,a3.container_memory_usage_bytes container_memory_usage_bytes from (select a2.receivetime,a2.container_memory_usage_bytes from (select a1.receivetime,(extract(epoch from now()))-(max(a1.container_memory_usage_bytes)) container_memory_usage_bytes from (select a0.receivetime,a0.namespace,a0.pod,a0.container_memory_usage_bytes container_memory_usage_bytes from container_pod_info a0 where a0.receivetime=(select receivetime from container_pod_info where receivetime>now() - interval '2 min' and receivetime<now() order by receivetime desc limit 1) order by a0.receivetime asc,a0.namespace asc,a0.pod asc) a1 group by a1.receivetime) a2 where a2.receivetime between now() - interval '5 min' and now()) a3) a4 group by a4.receivetime"
+   },
+   {
+      "promql": "avg_over_time(rate(container_memory_usage_bytes[1m])[2m:10s])",
+      "sql": ""
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
+      "promql": "NaN",
+      "sql": "select null::numeric"
+   },
+   {
       "promql": "NaN",
       "sql": "select null::numeric"
    },
