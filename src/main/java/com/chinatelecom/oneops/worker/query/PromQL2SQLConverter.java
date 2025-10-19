@@ -19,6 +19,7 @@ import com.chinatelecom.oneops.worker.query.generate.PromQLLexer;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.AddOpContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.AggregationContext;
+import com.chinatelecom.oneops.worker.query.generate.PromQLParser.CompareOpContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.ExpressionContext;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.Function_Context;
 import com.chinatelecom.oneops.worker.query.generate.PromQLParser.GroupingContext;
@@ -508,6 +509,8 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
                return visitAggregationTopK(false,ctx.parameterList().parameter(0).getText(),ctx.parameterList().parameter(1),isWithBy,labelNames);
             case "bottomk":
                 return visitAggregationTopK(true,ctx.parameterList().parameter(0).getText(),ctx.parameterList().parameter(1),isWithBy,labelNames);
+            case "quantile":
+                return visitAggregationQuantile(ctx.parameterList().parameter(0).getText(),ctx.parameterList().parameter(1),isWithBy,labelNames);
             default:
                 break;
         }
@@ -558,6 +561,56 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
         return parentQuery;
     }
 
+    private SQLQuery visitAggregationQuantile(String position,ParameterContext parameter, boolean isWithBy, List<String> labelNames){
+        SQLQuery subQuery=null;
+        float positionValue=Float.parseFloat(position);
+        if(positionValue>1 || positionValue<0){
+            return null;
+        }
+        if(parameter.vectorOperation()!=null){
+            subQuery=visit(parameter.vectorOperation());
+        }
+        if(subQuery==null){
+            return null;
+        }
+        SQLQuery parentQuery=new SQLQuery();
+        String aliasName=getAliasName();
+        parentQuery.setTableNameWithQuery(subQuery,aliasName);
+        String timeField=String.format("%s.%s" ,aliasName, subQuery.getTimeField().getFieldName());
+        parentQuery.setTimeField(timeField, subQuery.getTimeField().getFieldName());
+        String metricName=subQuery.getMetricField().getFieldName();
+        parentQuery.setMetricField(String.format("percentile_cont(%s) within group ( order by %s.%s) %s", 
+            position, aliasName, metricName,metricName),metricName);
+        parentQuery.addGroup(timeField);
+        List<String> subQueryLabels=new ArrayList<>();
+        if(subQuery.getLabelFields()!=null){
+            for(FieldPart labelField:subQuery.getLabelFields()){
+                subQueryLabels.add(labelField.getFieldName());
+            }
+        }
+        if(labelNames!=null){
+            if (isWithBy){
+                for(String labelName:labelNames){
+                    if(subQueryLabels.contains(labelName)){
+                        String labelField=String.format("%s.%s",aliasName,labelName);
+                        parentQuery.addLabelField(labelField,labelName);
+                        parentQuery.addGroup(labelField);
+                    }
+                }
+            } else{
+                for(String labelName:subQueryLabels){
+                    if (!labelNames.contains(labelName)){
+                        String labelString= String.format("%s.%s",aliasName,labelName);
+                        parentQuery.addLabelField(labelString,labelName);
+                        parentQuery.addGroup(labelString);
+                    }
+                }
+            }
+        }
+        return parentQuery;
+    }
+
+    
     private SQLQuery visitAggregationTopK(boolean isAsc,String top,ParameterContext parameter, boolean isWithBy, List<String> labelNames){
         SQLQuery subQuery=null;
         if(parameter.vectorOperation()!=null){
@@ -710,10 +763,29 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
         return subQuery;
     }
 
+    private String getCompareOperator(CompareOpContext opContext){
+        if(opContext.LE()!=null){
+            return opContext.LE().getText();
+        } else if (opContext.DEQ()!=null){
+            return opContext.DEQ().getText();
+        } else if (opContext.NE()!=null){
+            return opContext.NE().getText();
+        }else if (opContext.GT()!=null){
+            return opContext.GT().getText();
+        }else if (opContext.LT()!=null){
+            return opContext.LT().getText();
+        }else {
+            return opContext.GE().getText();
+        }
+    }
 
     @Override
     public SQLQuery visitVectorOperation4compare(VectorOperation4compareContext ctx) {
-        String operator=ctx.compareOp().getText();
+        String operator=getCompareOperator(ctx.compareOp());
+        boolean isBool =ctx.compareOp().BOOL()!=null;
+        if(operator.equals("==")){
+            operator="=";
+        }
         SQLQuery leftQuery=visit(ctx.vectorOperation(0));
         SQLQuery rightQuery=visit(ctx.vectorOperation(1));
         SQLQuery parentQuery=new SQLQuery();
@@ -721,7 +793,7 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
         String numString;
         if(leftQuery.getTableAlias()==null){
             if(rightQuery.getTableAlias()==null){
-                parentQuery.setMetricField(String.format("(%s)%s(%s)",
+                parentQuery.setMetricField(String.format(isBool?"((%s)%s(%s))::int":"(%s)%s(%s)",
                     leftQuery.getMetricField().getExpression(), operator,rightQuery.getMetricField().getExpression()),null);
                 return parentQuery;
             }else{
@@ -750,8 +822,8 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
             }
         }
         parentQuery.addCondition(leftQuery.getTableAlias()!=null?
-            String.format("%s.%s %s (%s)",aliasName,metricName,operator,numString) : 
-            String.format("(%s) %s %s.%s",numString,operator,aliasName,metricName)
+            String.format(isBool?"(%s.%s %s (%s))::int":"%s.%s %s (%s)",aliasName,metricName,operator,numString) : 
+            String.format(isBool?"((%s) %s %s.%s)::int":"(%s) %s %s.%s",numString,operator,aliasName,metricName)
         );
         return parentQuery;
     }
@@ -929,14 +1001,18 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
             if(literal.startsWith(".")){
                 literal="0"+literal;
             } else if (literal.toLowerCase().startsWith("0x")){
-                literal=String.valueOf(Integer.parseInt(literal.substring(2),16));
+                literal=String.valueOf(Integer.parseInt(literal.substring(2),16)) + "::numeric";
             } else if (literal.toLowerCase().indexOf("inf")!=-1){
                 literal=String.format("'%s'::numeric",literal);
             } else if (literal.equalsIgnoreCase("nan")){
                 literal="null::numeric";
+            } else{
+                if(literal.indexOf(".")==-1){
+                    literal=literal + "::numeric";
+                }
             }
         } else{
-            literal=ctx.STRING().getText();
+            literal=ctx.STRING().getText() + "::numeric";
         }
         SQLQuery query=new SQLQuery();
         query.setMetricField(literal, "");
