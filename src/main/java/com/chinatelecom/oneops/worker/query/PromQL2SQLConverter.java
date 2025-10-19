@@ -182,6 +182,9 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
     @Override
     public SQLQuery visitMatrixSelector(MatrixSelectorContext ctx) {
         SQLQuery instanceToken=visit(ctx.instantSelector());
+        if(instanceToken==null){
+            return null;
+        }
         //替换默认时间查询条件
         instanceToken.getCondition(0).setCondition(String.format("%s.%s between %s - interval '%s' and %s",
             instanceToken.getTableAlias(),FIELD_TIME,PLACEHOLDER_START_TIME,
@@ -287,15 +290,12 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
 
     @Override
     public SQLQuery visitFunction_(Function_Context ctx) {
-        String functionName=ctx.FUNCTION().getText();
+        String functionName=ctx.FUNCTION().getText().toLowerCase();
         final Map<String,String> mathMap=new HashMap<>(){{
             put("abs","abs");put("ceil","ceil");put("exp","exp");put("floor","floor");put("ln","ln");put("log2","log2");
             put("log10","log10");put("round","round"); put("sgn","sign");put("sqrt","sqrt");put("acos","");
             put("acosh","acosh");put("asin","asin");put("asinh","asinh");put("atan","atan");put("atanh","atan");put("cos","cos");
             put("cosh","cosh");put("sin","sin");put("sinh","sinh");put("tan","tang");put("tanh","tanh");
-            put("max_over_time","max");put("avg_over_time","avg");put("min_over_time","min");put("sum_over_time","sum");
-            put("count_over_time","count");put("stddev_over_time","stddev");put("stdvar_over_time","stddev_pop");
-            
         }};
         if(mathMap.containsKey(functionName)){
             return visitFunc4Math(ctx.parameter(0),mathMap.get(functionName));
@@ -310,16 +310,87 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
             case "rate":{
                 return visitFuncRate(ctx.parameter(0));
             }
+            case "delta":{
+                return visitFuncDelta(ctx.parameter(0));
+            }
+            case "increase":{
+                return visitFuncIncrease(ctx.parameter(0));
+            }
             case "clamp":{
                 return visitFuncClamp(ctx.parameter(0), ctx.parameter(1).getText(),ctx.parameter(2).getText());
             }
+            case "sum_over_time":
+            case "max_over_time":
+            case "avg_over_time":
+            case "min_over_time":
+            case "count_over_time":
+            case "stddev_over_time":{
+                return visitFunc4SingleParam(functionName,ctx.parameter(0));
+            }
+            case "stdvar_over_time":
+                return visitFunc4SingleParam("stddev_pop",ctx.parameter(0));
             case "last_over_time":{
                 return visitFunc4Last(ctx.parameter(0));
+            }
+            case "quantile_over_time":{
+                return visitFunc4Quantile(ctx.parameter(0).getText(),ctx.parameter(1));
             }
             default:
                 break;
         }
         return null;
+    }
+
+    private SQLQuery visitFunc4Quantile(String position,ParameterContext parameterContext){
+        SQLQuery subQuery=null;
+        float positionValue=Float.parseFloat(position);
+        if(positionValue>1 || positionValue<0){
+            return null;
+        }
+        if(parameterContext.vectorOperation()!=null){
+            subQuery=visit(parameterContext.vectorOperation());
+        }
+        SQLQuery parentQuery=new SQLQuery();
+        String aliasName=getAliasName();
+        parentQuery.setTableNameWithQuery(subQuery,aliasName);
+        String timeField=String.format("%s.%s" ,aliasName, subQuery.getTimeField().getFieldName());
+        parentQuery.setTimeField(timeField, subQuery.getTimeField().getFieldName());
+        parentQuery.addGroup(timeField);
+        String metricName=subQuery.getMetricField().getFieldName();
+        if(subQuery.getLabelFields()!=null){
+            for(FieldPart labelField:subQuery.getLabelFields()){
+                String labelFieldName=String.format("%s.%s",aliasName,labelField.getFieldName());
+                parentQuery.addLabelField(labelFieldName,labelField.getFieldName());
+                parentQuery.addGroup(labelFieldName);
+            }
+        }
+        parentQuery.setMetricField(String.format("percentile_cont(%s) within group ( order by %s.%s) %s", 
+                 position, aliasName, metricName,metricName),metricName);
+        return parentQuery;
+    }
+
+    private SQLQuery visitFunc4SingleParam(String operator,ParameterContext parameterContext){
+        SQLQuery subQuery=null;
+        if(parameterContext.vectorOperation()!=null){
+            subQuery=visit(parameterContext.vectorOperation());
+        }
+        SQLQuery parentQuery=new SQLQuery();
+        String aliasName=getAliasName();
+        parentQuery.setTableNameWithQuery(subQuery,aliasName);
+        String timeField=String.format("%s.%s" ,aliasName, subQuery.getTimeField().getFieldName());
+        parentQuery.setTimeField(timeField, subQuery.getTimeField().getFieldName());
+        parentQuery.addGroup(timeField);
+        String metricName=subQuery.getMetricField().getFieldName();
+        if(subQuery.getLabelFields()!=null){
+            for(FieldPart labelField:subQuery.getLabelFields()){
+                String labelFieldName=String.format("%s.%s",aliasName,labelField.getFieldName());
+                parentQuery.addLabelField(labelFieldName,labelField.getFieldName());
+                parentQuery.addGroup(labelFieldName);
+            }
+        }
+        parentQuery.setMetricField(String.format("%s(%s.%s) %s",operator.replace("_over_time", ""), 
+            aliasName,metricName,metricName),metricName);
+        return parentQuery;
     }
 
     private SQLQuery visitFunc4Last(ParameterContext parameterContext){
@@ -381,8 +452,10 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
                 parentQuery.addLabelField(String.format("%s.%s",aliasName,labelField.getFieldName()),labelField.getFieldName());
             }
         }
-        String metricName=subQuery.getTimeField().getFieldName();
-        parentQuery.setMetricField(String.format("%s.%s", aliasName, metricName),metricName);
+        String timeField=String.format("%s.%s" ,aliasName, subQuery.getTimeField().getFieldName());
+        parentQuery.setTimeField(timeField, subQuery.getTimeField().getFieldName());
+        String metricName=subQuery.getMetricField().getFieldName();
+        parentQuery.setMetricField(String.format("%s %s", timeField,metricName),metricName);
         return parentQuery;
     }
 
@@ -424,10 +497,124 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
         return parentQuery;
     }
 
+    private SQLQuery visitFuncDelta(ParameterContext parameterContext){
+        SQLQuery subQuery=null;
+        if(parameterContext.vectorOperation()!=null){
+            subQuery=visit(parameterContext.vectorOperation());
+        }
+        if(subQuery==null) {
+            return subQuery;
+        }
+        SQLQuery parentQuery=new SQLQuery();
+        String aliasName=getAliasName();
+        parentQuery.setTableNameWithQuery(subQuery,aliasName);
+        StringBuffer labelFieldString=new StringBuffer();
+        if(subQuery.getLabelFields()!=null){
+            for(FieldPart labelField:subQuery.getLabelFields()){
+                String labelString= String.format("%s.%s",aliasName,labelField.getFieldName());
+                parentQuery.addLabelField(labelString,labelField.getFieldName());
+                labelFieldString.append(labelString).append(",");
+            }
+            if(labelFieldString.length()>0){
+                labelFieldString.insert(0, "partition by ");
+                labelFieldString.deleteCharAt(labelFieldString.length()-1).append(" ");
+            }
+        }
+        String timeField=String.format("%s.%s" ,aliasName, subQuery.getTimeField().getFieldName());
+        parentQuery.setTimeField(timeField, subQuery.getTimeField().getFieldName());
+        String metricField=String.format("%s.%s",aliasName,subQuery.getMetricField().getFieldName());
+        String metricName=subQuery.getMetricField().getFieldName();
+        parentQuery.addHelpField(String.format(
+            "last_value(%s) over (%sorder by %s) %s",
+                metricField,labelFieldString.toString(),timeField,metricName +"_last_value"),
+            metricName+"_last_value");
+        parentQuery.addHelpField(String.format(
+            "first_value(%s) over (%sorder by %s) %s",
+                metricField,labelFieldString.toString(),timeField,metricName +"_first_value"),
+            metricName+"_first_value");
+    
+        SQLQuery topQuery=new SQLQuery();
+        String topAliasName=getAliasName();
+        topQuery.setTableNameWithQuery(parentQuery,topAliasName);
+        String topTimeField=String.format("%s.%s" ,topAliasName, parentQuery.getTimeField().getFieldName());
+        topQuery.setTimeField(topTimeField, parentQuery.getTimeField().getFieldName());
+        if(parentQuery.getLabelFields()!=null){
+            for(FieldPart labelField:parentQuery.getLabelFields()){
+                String labelString= String.format("%s.%s",topAliasName,labelField.getFieldName());
+                topQuery.addLabelField(labelString,labelField.getFieldName());
+            }
+        }
+        topQuery.setMetricField(String.format("%s.%s-%s.%s %s",
+            topAliasName,metricName+"_last_value",topAliasName,metricName+"_first_value",
+                metricName), metricName);
+        return topQuery;
+    }
+
+    private SQLQuery visitFuncIncrease(ParameterContext parameterContext){
+        SQLQuery subQuery=null;
+        if(parameterContext.vectorOperation()!=null){
+            subQuery=visit(parameterContext.vectorOperation());
+        }
+        if(subQuery==null) {
+            return subQuery;
+        }
+        SQLQuery parentQuery=new SQLQuery();
+        String aliasName=getAliasName();
+        parentQuery.setTableNameWithQuery(subQuery,aliasName);
+        StringBuffer labelFieldString=new StringBuffer();
+        if(subQuery.getLabelFields()!=null){
+            for(FieldPart labelField:subQuery.getLabelFields()){
+                String labelString= String.format("%s.%s",aliasName,labelField.getFieldName());
+                parentQuery.addLabelField(labelString,labelField.getFieldName());
+                labelFieldString.append(labelString).append(",");
+            }
+            if(labelFieldString.length()>0){
+                labelFieldString.insert(0, "partition by ");
+                labelFieldString.deleteCharAt(labelFieldString.length()-1).append(" ");
+            }
+        }
+        String timeField=String.format("%s.%s" ,aliasName, subQuery.getTimeField().getFieldName());
+        parentQuery.setTimeField(timeField, subQuery.getTimeField().getFieldName());
+        String metricField=String.format("%s.%s",aliasName,subQuery.getMetricField().getFieldName());
+        String metricName=subQuery.getMetricField().getFieldName();
+        parentQuery.addHelpField(String.format(
+            "last_value(%s) over (%sorder by %s) %s",
+                metricField,labelFieldString.toString(),timeField,metricName +"_last_value"),
+            metricName+"_last_value");
+        parentQuery.addHelpField(String.format(
+            "first_value(%s) over (%sorder by %s) %s",
+                metricField,labelFieldString.toString(),timeField,metricName +"_first_value"),
+            metricName+"_first_value");
+        parentQuery.addHelpField(String.format(
+            "min(%s) over (%sorder by %s) %s",
+                metricField,labelFieldString.toString(),timeField,metricName +"_min_value"),
+            metricName+"_min_value");
+        SQLQuery topQuery=new SQLQuery();
+        String topAliasName=getAliasName();
+        topQuery.setTableNameWithQuery(parentQuery,topAliasName);
+        String topTimeField=String.format("%s.%s" ,topAliasName, parentQuery.getTimeField().getFieldName());
+        topQuery.setTimeField(topTimeField, parentQuery.getTimeField().getFieldName());
+        if(parentQuery.getLabelFields()!=null){
+            for(FieldPart labelField:parentQuery.getLabelFields()){
+                String labelString= String.format("%s.%s",topAliasName,labelField.getFieldName());
+                topQuery.addLabelField(labelString,labelField.getFieldName());
+            }
+        }
+        topQuery.setMetricField(String.format("case when %s.%s>%s.%s then %s.%s-%s.%s else %s.%s-%s.%s end as %s",
+            topAliasName,metricName+"_min_value",topAliasName,metricName+"_first_value",
+            topAliasName,metricName+"_last_value",topAliasName,metricName+"_min_value",
+            topAliasName,metricName+"_last_value",topAliasName,metricName+"_first_value",
+                metricName), metricName);
+        return topQuery;
+    }
+
     private SQLQuery visitFuncRate(ParameterContext parameterContext){
         SQLQuery subQuery=null;
         if(parameterContext.vectorOperation()!=null){
             subQuery=visit(parameterContext.vectorOperation());
+        }
+        if(subQuery==null) {
+            return subQuery;
         }
         SQLQuery parentQuery=new SQLQuery();
         String aliasName=getAliasName();
@@ -779,6 +966,13 @@ public class PromQL2SQLConverter extends PromQLParserBaseVisitor<SQLQuery>{
         }
     }
 
+    /**
+     * TODO 存在问题{
+      "promql": "container_memory_usage_bytes == on(namespace, pod) container_memory_usage_bytes",
+      sum by(namepspace) (container_memory_usage_bytes) + on(namepspace) group_left(pod) container_memory_usage_bytes
+   },
+   
+     */
     @Override
     public SQLQuery visitVectorOperation4compare(VectorOperation4compareContext ctx) {
         String operator=getCompareOperator(ctx.compareOp());
